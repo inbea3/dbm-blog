@@ -1,0 +1,63 @@
+{
+  "author": {
+    "name": "zimu",
+    "avatar": "/assets/uploads/avatar.jpg",
+    "bio": "Go bigger or go home || 退步原来是向前",
+    "skills": [
+      "Python",
+      "SQL",
+      "R",
+      "Flask",
+      "Docker",
+      "Git"
+    ],
+    "social": {
+      "gitee": "https://gitee.com/inbea3",
+      "email": "sufer76980@163.com",
+      "qq": "670759203",
+      "qqQr": "/assets/qq_qr.svg"
+    }
+  },
+  "articles": [
+    {
+      "id": 1,
+      "title": "欢迎来到我的个人博客",
+      "date": "2024-01-15",
+      "author": "zimu",
+      "summary": "这是我的个人博客的第一篇文章，欢迎大家访问和交流。在这篇文章中，我将介绍博客的特点和后续内容规划。",
+      "content": "<h2>欢迎来到我的个人博客</h2><p>这是我的个人博客的第一篇文章，欢迎大家访问和交流。在这篇文章中，我将介绍博客的特点和后续内容规划。</p><h3>博客特点</h3><ul><li>轻量级架构，基于Flask + 原生JavaScript</li><li>响应式设计，支持移动端访问</li><li>深色模式，护眼舒适</li><li>代码高亮，技术文章阅读友好</li></ul><h3>内容规划</h3><p>我计划分享以下内容：</p><ul><li>Python Web开发心得</li><li>前端技术学习笔记</li><li>项目实战经验</li><li>技术工具使用技巧</li></ul><p>希望我的博客能够帮助到更多开发者，也欢迎大家留言交流！</p>"
+    },
+    {
+      "id": 2,
+      "title": "Flask入门指南：快速搭建你的第一个Web应用",
+      "date": "2024-02-20",
+      "author": "zimu",
+      "summary": "Flask是一个轻量级的Python Web框架，非常适合快速开发小型应用。本文将带你从零开始，搭建一个完整的Flask应用。",
+      "content": "<h2>Flask入门指南</h2><p>Flask是一个轻量级的Python Web框架，非常适合快速开发小型应用。本文将带你从零开始，搭建一个完整的Flask应用。</p><h3>什么是Flask？</h3><p>Flask是一个基于Werkzeug和Jinja2的微框架。它的特点是：</p><ul><li>简单易用，学习曲线平缓</li><li>扩展性强，可以根据需要添加功能</li><li>文档完善，社区活跃</li></ul><h3>快速开始</h3><pre><code>from flask import Flask\napp = Flask(__name__)\n\n@app.route('/')\ndef hello():\n    return 'Hello, Flask!'\n\nif __name__ == '__main__':\n    app.run(debug=True)</code></pre><h3>核心概念</h3><p>Flask的核心概念包括路由、模板、请求处理等。掌握这些基础后，你就能快速开发出功能完善的Web应用了。</p>"
+    },
+    {
+      "id": 3,
+      "title": "前端响应式设计：如何让你的网站适配各种设备",
+      "date": "2024-03-10",
+      "author": "zimu",
+      "summary": "在移动设备普及的今天，响应式设计已经成为网站开发的必备技能。本文介绍响应式设计的基本原理和实践方法。",
+      "content": "<h2>前端响应式设计</h2><p>在移动设备普及的今天，响应式设计已经成为网站开发的必备技能。本文介绍响应式设计的基本原理和实践方法。</p><h3>什么是响应式设计？</h3><p>响应式设计是一种网页设计方法，使网页能够根据用户设备的屏幕尺寸自动调整布局和样式。</p><h3>核心技术</h3><ul><li>媒体查询（Media Queries）</li><li>弹性网格布局（Flexible Grid）</li><li>弹性图片（Flexible Images）</li></ul><h3>实践建议</h3><p>要实现良好的响应式设计，建议：</p><ol><li>移动优先的设计思路</li><li>使用相对单位而非固定像素</li><li>测试多种设备上的显示效果</li></ol>"
+    },
+    {
+      "id": 4,
+      "title": "JavaScript异步编程：Promise和async/await详解",
+      "date": "2024-04-05",
+      "author": "zimu",
+      "summary": "异步编程是JavaScript的核心特性之一。本文详细介绍Promise和async/await的使用方法，帮助你更好地处理异步操作。",
+      "content": "<h2>JavaScript异步编程</h2><p>异步编程是JavaScript的核心特性之一。本文详细介绍Promise和async/await的使用方法，帮助你更好地处理异步操作。</p><h3>为什么要用异步编程？</h3><p>JavaScript是单线程的，如果所有操作都是同步的，长时间运行的任务会阻塞主线程，导致页面卡顿。异步编程可以解决这个问题。</p><h3>Promise基础</h3><pre><code>const fetchData = () => {\n  return new Promise((resolve, reject) => {\n    setTimeout(() => {\n      resolve('数据加载成功');\n    }, 1000);\n  });\n};</code></pre><h3>async/await</h3><p>async/await是Promise的语法糖，让异步代码看起来像同步代码：</p><pre><code>async function getData() {\n  try {\n    const result = await fetchData();\n    console.log(result);\n  } catch (error) {\n    console.error(error);\n  }\n}</code></pre>"
+    },
+    {
+      "id": 5,
+      "title": "RESTful API设计最佳实践",
+      "date": "2024-04-18",
+      "author": "zimu",
+      "summary": "RESTful API是现代Web应用的核心组成部分。本文分享RESTful API设计的最佳实践，帮助你构建更好的API接口。",
+      "content": "<h2>RESTful API设计最佳实践</h2><p>RESTful API是现代Web应用的核心组成部分。本文分享RESTful API设计的最佳实践，帮助你构建更好的API接口。</p><h3>RESTful原则</h3><ul><li>使用HTTP动词表示操作类型</li><li>使用名词表示资源</li><li>使用标准HTTP状态码</li><li>实现幂等性</li></ul><h3>API设计示例</h3><pre><code>GET    /api/articles      # 获取所有文章\nGET    /api/articles/:id  # 获取单篇文章\nPOST   /api/articles      # 创建新文章\nPUT    /api/articles/:id  # 更新文章\nDELETE /api/articles/:id  # 删除文章</code></pre><h3>最佳实践</h3><p>遵循以下最佳实践可以让你的API更加专业：</p><ol><li>使用语义化的URL</li><li>提供清晰的错误信息</li><li>实现分页和过滤</li><li>添加API文档</li></ol>"
+    }
+  ]
+}
