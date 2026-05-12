@@ -24,6 +24,9 @@ env/
 .env.*
 !.env.example
 
+# Neon / 本地数据库连接（勿提交）
+neondatabase_paras.txt
+
 # Logs
 *.log
 
@@ -40,8 +43,3 @@ pnpm-debug.log*
 
 # Cursor local project data
 .cursor/
-
-# Uploaded/generated assets
-assets/uploads/**
-!assets/uploads/
-!assets/uploads/avatar.*

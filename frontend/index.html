@@ -326,35 +326,6 @@
             document.getElementById('qq-modal')?.classList.add('hidden');
         }
 
-        // 加载作者信息
-        async function loadAuthorInfo() {
-            try {
-                const response = await fetch('/api/author');
-                if (!response.ok) throw new Error('author');
-                const author = await response.json();
-                displaySkills(author.skills);
-            } catch (error) {
-                console.error('获取作者信息失败:', error);
-                document.getElementById('skills-error').classList.remove('hidden');
-            }
-        }
-
-        // 显示技能
-        function displaySkills(skills) {
-            const container = document.getElementById('skills-container');
-            container.innerHTML = '';
-            if (!skills || !skills.length) return;
-            // 让技能区更像 OpenRouter 的标签列表：居中但不铺满整屏
-            container.classList.add('mt-6', 'max-w-4xl', 'mx-auto');
-            skills.forEach((skill, index) => {
-                const tag = document.createElement('span');
-                tag.className = 'skill-tag';
-                tag.textContent = skill;
-                tag.style.animationDelay = `${index * 0.1}s`;
-                container.appendChild(tag);
-            });
-        }
-
         // 加载最新文章
         async function loadLatestArticles() {
             try {
@@ -415,8 +386,8 @@
             menu.classList.toggle('hidden');
         }
 
-        // 页面加载时执行
-        document.addEventListener('DOMContentLoaded', () => {
+        // 页面加载时执行（技能标签由 Contact.init → refreshAuthorFromApi 从数据库 /api/author 填充）
+        document.addEventListener('DOMContentLoaded', async () => {
             // 检查深色模式设置
             const darkMode = localStorage.getItem('darkMode');
             if (darkMode === 'true') {
@@ -424,10 +395,8 @@
                 document.getElementById('theme-icon').className = 'fas fa-sun';
             }
 
-            // 加载数据
-            loadAuthorInfo();
+            await Contact.init();
             loadLatestArticles();
-            Contact.init();
         });
     </script>
 </body>

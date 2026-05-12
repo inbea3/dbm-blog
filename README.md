@@ -1,70 +1,27 @@
-# 个人博客开发任务说明
-## 项目概述
-基于**前后端分离**架构，搭建一套**轻量化、易维护、可直接上线**的个人博客系统，包含完整前端展示页面 + Python 后端接口。
+# 个人博客
 
-## 技术栈
-### 前端
-- **基础**：HTML5 + CSS3 + 原生 JavaScript
-- **样式框架**：**Tailwind CSS CDN**
-- **图标**：Font Awesome CDN
-- **特性**：响应式、深色模式、页面平滑动画
-- **无框架、零配置**，打开 HTML 即可预览
+Flask + 原生 HTML/JS，数据在 **PostgreSQL**。本地 `assets/` 为样式与脚本目录。
 
-### 后端
-- **语言**：Python 3
-- **框架**：**Flask**
-- **数据存储**：**JSON 文件**
-- **接口**：RESTful API
-- **跨域**：flask-cors
+## 启动
 
-### 部署方案
-- 前端：GitHub Pages
-- 后端：Render 
-
----
-
-## 核心功能
-### 前端页面
-1. **首页**：个人介绍、技能、社交链接、最新文章
-2. **博客列表页**：所有文章标题、时间、摘要
-3. **文章详情页**：正文、代码高亮、阅读友好
-4. **关于我**：个人简介、联系方式
-5. **导航栏 + 页脚**
-6. **移动端适配 + 深色模式**
-
-### 后端接口
-1. 获取所有博客文章列表
-2. 获取单篇文章详情
-3. 本地 JSON 文件数据持久化
-4. 静态资源托管
-5. 跨域支持
-
----
-
-## 项目文件结构（极简清晰）
-```
-personal-blog/
-├── frontend/           # 前端
-│   ├── index.html     # 首页
-│   ├── blog.html      # 文章列表
-│   ├── detail.html    # 文章详情
-│   ├── about.html     # 关于我
-│   └── assets/        # 样式、脚本、图片
-├── backend/            # Python 后端
-│   ├── app.py         # 后端主文件
-│   ├── data.json      # 博客文章数据
-│   └── requirements.txt  # 依赖
-└── README.md
+```bash
+pip install -r backend/requirements.txt
+python backend/app.py
 ```
 
----
+浏览器访问 `http://localhost:5000`（不要 `file://`）。
 
-## 开发要求
-1. 全程使用 VS Code + Claude Code 完成
-2. 代码极简、注释详细、方便修改
-3. 前后端分离，前端调用后端真实 API
-4. 本地双击/一行命令即可启动
-5. 不使用复杂框架，纯新手可维护
-6. 提供完整启动、运行、部署教程
+## 配置
 
----
+- 数据库：`DATABASE_URL` / `BLOG_DATABASE_URL`，或环境变量 `PGHOST`、`PGDATABASE`、`PGUSER`、`PGPASSWORD`（可选 `PGSSLMODE`、`PGCHANNELBINDING`）；逻辑见 `backend/neon_db.py`。本地可把值写在项目根目录 **`.env`**（参考 `.env.example`，已由 `python-dotenv` 在导入 `neon_db` 时加载）。
+- 首个管理员：库中尚无 `role=admin` 时，需设 `BLOG_ADMIN_EMAIL`、`BLOG_ADMIN_PASSWORD`；已有管理员则用库里邮箱+密码登录。`password_hash` 须为 Werkzeug 哈希，可用 `python backend/set_user_password.py 邮箱 明文密码`。
+- 可选：`BLOG_SECRET_KEY`、`PORT`。
+
+## 目录
+
+- `frontend/`：页面  
+- `backend/`：`app.py`、`postgres_store.py`、`neon_db.py`  
+- `assets/`：`style.css`、`script.js`（头像与文章插图二进制在库表 `media_asset`，经 `GET /api/media/<id>` 输出）
+- `create_postgresql.sql`、`sql/`：库结构 / 迁移  
+
+更多部署见 `DEPLOYMENT.md`，结构说明见 `summary.md`。

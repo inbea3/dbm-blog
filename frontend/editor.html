@@ -72,7 +72,7 @@
                     <a href="blog.html" class="px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
                         返回列表
                     </a>
-                    <button id="save-btn" type="button" onclick="saveArticle()" class="admin-only hidden px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors font-semibold">
+                    <button id="save-btn" type="button" onclick="saveArticle()" class="px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors font-semibold">
                         保存
                     </button>
                 </div>
@@ -101,6 +101,17 @@
                 </div>
             </div>
 
+            <div class="mt-4 grid gap-4 md:grid-cols-2">
+                <div>
+                    <label class="text-sm font-semibold text-gray-700 dark:text-gray-200">分类</label>
+                    <select id="category_id" class="mt-2 w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-3 text-gray-900 dark:text-white"></select>
+                </div>
+                <div>
+                    <label class="text-sm font-semibold text-gray-700 dark:text-gray-200">标签（Ctrl / ⌘ 多选）</label>
+                    <select id="tag_ids" multiple size="8" class="mt-2 w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-2 text-sm text-gray-900 dark:text-white"></select>
+                </div>
+            </div>
+
             <div class="mt-4 flex flex-wrap items-center gap-3">
                 <div class="inline-flex items-center gap-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2">
                     <span class="text-sm font-semibold text-gray-700 dark:text-gray-200">格式</span>
@@ -111,9 +122,13 @@
                 </div>
 
                 <input id="image-file" type="file" accept="image/*" class="hidden" onchange="onInsertImage()" />
-                <button type="button" onclick="document.getElementById('image-file').click()" class="admin-only hidden inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-                    <i class="fas fa-image"></i> 插入图片
+                <button type="button" onclick="onPickImageClick()" class="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                    <i class="fas fa-image"></i> 本地上传
                 </button>
+                <div class="inline-flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2">
+                    <input id="image-url-input" type="url" inputmode="url" placeholder="https://图床或 CDN 图片地址" class="min-w-[12rem] max-w-md flex-1 rounded-md border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-900 px-2 py-1 text-sm text-gray-900 dark:text-white" />
+                    <button type="button" onclick="onInsertImageUrl()" class="text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:underline">插入外链</button>
+                </div>
 
                 <button type="button" onclick="togglePreview()" class="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
                     <i class="fas fa-eye"></i> 切换预览
@@ -193,7 +208,7 @@
         function getIdFromUrl() {
             const p = new URLSearchParams(window.location.search);
             const id = p.get('id');
-            return id ? parseInt(id) : null;
+            return id ? String(id) : null;
         }
 
         function schedulePreview() {
@@ -249,6 +264,11 @@
             schedulePreview();
         }
 
+        function onPickImageClick() {
+            if (!Auth?.requireAdminOrExplain?.()) return;
+            document.getElementById('image-file')?.click();
+        }
+
         async function onInsertImage() {
             if (!Auth?.requireAdminOrExplain?.()) return;
             const input = document.getElementById('image-file');
@@ -257,7 +277,7 @@
             const status = document.getElementById('status');
             if (status) status.textContent = '图片上传中...';
             try {
-                const res = await API.uploadArticleImage(file);
+                const res = await API.uploadArticleImage(file, currentId || undefined);
                 const url = res?.url;
                 const fmt = document.getElementById('format').value;
                 const ta = document.getElementById('content');
@@ -275,9 +295,52 @@
             }
         }
 
+        async function onInsertImageUrl() {
+            if (!Auth?.requireAdminOrExplain?.()) return;
+            const raw = document.getElementById('image-url-input')?.value?.trim();
+            const status = document.getElementById('status');
+            if (!raw) {
+                if (status) status.textContent = '请填写图片 URL';
+                setTimeout(() => { const s = document.getElementById('status'); if (s) s.textContent = ''; }, 2000);
+                return;
+            }
+            if (status) status.textContent = '正在登记外链…';
+            try {
+                const res = await API.registerArticleImageUrl(raw, currentId || undefined);
+                const url = res?.url;
+                const fmt = document.getElementById('format').value;
+                const ta = document.getElementById('content');
+                if (fmt === 'md') {
+                    insertAtCursor(ta, `\n\n![](${url})\n\n`);
+                } else {
+                    insertAtCursor(ta, `\n\n[图片] ${url}\n\n`);
+                }
+                if (status) status.textContent = '已插入外链';
+                document.getElementById('image-url-input').value = '';
+            } catch (e) {
+                if (status) status.textContent = `外链失败：${e?.message ?? e}`;
+            } finally {
+                setTimeout(() => { const s = document.getElementById('status'); if (s) s.textContent = ''; }, 2500);
+            }
+        }
+
+        async function populateCategoryTags() {
+            const catSel = document.getElementById('category_id');
+            const tagSel = document.getElementById('tag_ids');
+            if (!catSel || !tagSel) return;
+            try {
+                const [cats, tags] = await Promise.all([API.getCategories(), API.getTags()]);
+                catSel.innerHTML = (cats || []).map((c) => `<option value="${c.id}">${c.name}</option>`).join('');
+                tagSel.innerHTML = (tags || []).map((t) => `<option value="${t.id}">${t.name}</option>`).join('');
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
         async function loadForEdit(id) {
             const status = document.getElementById('status');
             if (status) status.textContent = '加载文章...';
+            await populateCategoryTags();
             const a = await API.getArticle(id);
             currentId = a.id;
             document.getElementById('article-id-badge').textContent = `ID: ${a.id}`;
@@ -286,6 +349,17 @@
             document.getElementById('format').value = a.format ?? 'md';
             document.getElementById('date').value = a.date ?? '';
             document.getElementById('content').value = a.raw ?? '';
+            if (a.category?.id) {
+                const csel = document.getElementById('category_id');
+                if (csel) csel.value = a.category.id;
+            }
+            const tagSel = document.getElementById('tag_ids');
+            if (tagSel && a.tags) {
+                const ids = new Set((a.tags || []).map((t) => String(t.id)));
+                Array.from(tagSel.options).forEach((o) => {
+                    o.selected = ids.has(o.value);
+                });
+            }
             schedulePreview();
             if (status) status.textContent = '';
         }
@@ -304,6 +378,13 @@
                     date: document.getElementById('date').value,
                     content: document.getElementById('content').value
                 };
+                const cid = document.getElementById('category_id')?.value;
+                if (cid) payload.category_id = cid;
+                const tagSel = document.getElementById('tag_ids');
+                if (tagSel) {
+                    const tag_ids = Array.from(tagSel.selectedOptions).map((o) => o.value);
+                    if (tag_ids.length) payload.tag_ids = tag_ids;
+                }
                 let saved;
                 if (currentId) {
                     saved = await API.updateArticle(currentId, payload);
@@ -326,15 +407,33 @@
         }
 
         document.addEventListener('DOMContentLoaded', async () => {
-            Contact.init();
-            // 默认日期：今天（新建文章时）
+            await Contact.init();
+            await Auth.refresh();
+            await populateCategoryTags();
             const d = document.getElementById('date');
             if (d && !d.value) d.value = new Date().toISOString().slice(0, 10);
             const id = getIdFromUrl();
-            if (id) {
-                try { await loadForEdit(id); } catch (e) { const s=document.getElementById('status'); if(s) s.textContent='加载失败'; }
+            if (id && !Auth.state.admin) {
+                UI.openLoginModal('编辑已有文章需要先登录管理员账号。登录成功后将自动加载文章内容。');
+            } else if (id) {
+                try {
+                    await loadForEdit(id);
+                } catch (e) {
+                    const s = document.getElementById('status');
+                    if (s) s.textContent = '加载失败';
+                }
             } else {
                 schedulePreview();
+            }
+        });
+
+        window.addEventListener('auth-changed', async () => {
+            const id = getIdFromUrl();
+            if (!id || !Auth.state.admin) return;
+            try {
+                await loadForEdit(id);
+            } catch (e) {
+                /* ignore */
             }
         });
     </script>

@@ -155,7 +155,7 @@
                 <h1 class="text-4xl md:text-5xl font-bold mb-4">我的博客文章</h1>
                 <p class="text-xl opacity-90">Learning & Sharing</p>
                 <div class="mt-8">
-                    <a href="editor.html" class="admin-only hidden inline-flex items-center gap-2 bg-white/95 text-indigo-700 px-6 py-3 rounded-full font-bold hover:bg-white transition-colors">
+                    <a href="editor.html" data-require-admin="1" data-admin-hint="写文章需要先登录管理员账号。" class="inline-flex items-center gap-2 bg-white/95 text-indigo-700 px-6 py-3 rounded-full font-bold hover:bg-white transition-colors">
                         <i class="fas fa-pen"></i> 写博客
                     </a>
                 </div>
@@ -260,20 +260,26 @@
                                 <h2 class="text-2xl font-bold mb-2 text-indigo-600 hover:text-indigo-800">
                                     <a href="detail.html?id=${article.id}">${article.title}</a>
                                 </h2>
-                                <p class="text-gray-600 dark:text-gray-300 mb-4">${article.summary}</p>
+                                <p class="text-gray-600 dark:text-gray-300 mb-2">${article.summary}</p>
+                                <div class="flex flex-wrap gap-2 mb-3 text-xs">
+                                    ${article.category ? `<span class="px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300">${article.category.name}</span>` : ''}
+                                    ${(article.tags || []).map((t) => `<span class="px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">${t.name}</span>`).join('')}
+                                </div>
                                 <div class="flex items-center gap-4 text-sm text-gray-500">
                                     <span><i class="fas fa-calendar-alt mr-2"></i>${article.date}</span>
                                     <span><i class="fas fa-user mr-2"></i>${article.author}</span>
+                                    <span><i class="fas fa-comments mr-1"></i>${article.comment_count ?? 0}</span>
+                                    <span><i class="fas fa-thumbs-up mr-1"></i>${article.likes ?? 0}</span>
                                 </div>
                             </div>
                             <div class="self-start flex items-center gap-2">
                                 <a href="detail.html?id=${article.id}" class="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 transition-colors">
                                     阅读全文 <i class="fas fa-arrow-right ml-2"></i>
                                 </a>
-                                <a href="editor.html?id=${article.id}" class="admin-only hidden bg-white dark:bg-gray-900 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-400/30 px-4 py-2 rounded hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition-colors">
+                                <a href="editor.html?id=${article.id}" data-require-admin="1" data-admin-hint="编辑文章需要先登录管理员账号。" class="bg-white dark:bg-gray-900 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-400/30 px-4 py-2 rounded hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition-colors">
                                     编辑 <i class="fas fa-pen ml-2"></i>
                                 </a>
-                                <button type="button" class="admin-only hidden bg-white dark:bg-gray-900 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-400/30 px-4 py-2 rounded hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors js-delete-article" data-article-id="${article.id}" data-article-title="${article.title ?? ''}">
+                                <button type="button" class="bg-white dark:bg-gray-900 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-400/30 px-4 py-2 rounded hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors js-delete-article" data-article-id="${article.id}" data-article-title="${article.title ?? ''}">
                                     删除 <i class="fas fa-trash ml-2"></i>
                                 </button>
                             </div>
@@ -300,9 +306,9 @@
             const btn = e.target?.closest?.('.js-delete-article');
             if (!btn) return;
             if (!Auth?.requireAdminOrExplain?.()) return;
-            const id = parseInt(btn.getAttribute('data-article-id'));
+            const id = btn.getAttribute('data-article-id');
             const title = btn.getAttribute('data-article-title') || '';
-            const ok = confirm(`确认删除文章 #${id}《${title}》？此操作不可恢复。`);
+            const ok = confirm(`确认删除文章《${title}》？此操作不可恢复。`);
             if (!ok) return;
             try {
                 await API.deleteArticle(id);
@@ -335,7 +341,7 @@
         }
 
         // 页面加载时执行
-        document.addEventListener('DOMContentLoaded', () => {
+        document.addEventListener('DOMContentLoaded', async () => {
             // 检查深色模式设置
             const darkMode = localStorage.getItem('darkMode');
             if (darkMode === 'true') {
@@ -345,7 +351,7 @@
 
             // 加载文章列表
             loadArticles();
-            Contact.init();
+            await Contact.init();
         });
     </script>
 </body>

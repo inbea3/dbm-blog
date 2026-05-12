@@ -1,9 +1,3 @@
-/**
- * 共享JavaScript函数库
- * 用于博客网站的通用功能
- */
-
-// 深色模式管理
 const DarkMode = {
     toggle() {
         const html = document.documentElement;
@@ -30,7 +24,6 @@ const DarkMode = {
     }
 };
 
-// 移动端菜单管理
 const MobileMenu = {
     toggle() {
         const menu = document.getElementById('mobile-menu');
@@ -40,26 +33,29 @@ const MobileMenu = {
     }
 };
 
-// API 根路径：与当前页面同源，避免端口/域名不一致导致请求失败
 function apiRoot() {
     return `${window.location.origin}/api`;
 }
 
-// 登录/权限
 const Auth = {
-    state: { admin: false, email: null },
+    state: { admin: false, email: null, nickname: null, userId: null },
 
     async refresh() {
         if (window.location.protocol === 'file:') {
-            this.state = { admin: false, email: null };
+            this.state = { admin: false, email: null, nickname: null, userId: null };
             return this.state;
         }
         try {
             const res = await fetch(`${apiRoot()}/me`, { credentials: 'include' });
             const data = await res.json();
-            this.state = { admin: !!data?.admin, email: data?.email ?? null };
+            this.state = {
+                admin: !!data?.admin,
+                email: data?.email ?? null,
+                nickname: data?.nickname ?? null,
+                userId: data?.user_id ?? null
+            };
         } catch (e) {
-            this.state = { admin: false, email: null };
+            this.state = { admin: false, email: null, nickname: null, userId: null };
         }
         return this.state;
     },
@@ -72,7 +68,7 @@ const Auth = {
             body: JSON.stringify({ email, password })
         });
         const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(data?.error || '您作为游客，无法编辑');
+        if (!res.ok) throw new Error(data?.error || '账号或密码错误');
         await this.refresh();
         return data;
     },
@@ -84,12 +80,11 @@ const Auth = {
 
     requireAdminOrExplain() {
         if (this.state.admin) return true;
-        UI.openLoginModal('您作为游客，无法编辑');
+        UI.openLoginModal('此操作需要管理员登录：新增/修改/删除文章，或修改「关于我」资料。');
         return false;
     }
 };
 
-// UI：登录弹窗 + admin-only 显示控制
 const UI = {
     ensureLoginModal() {
         if (document.getElementById('login-modal')) return;
@@ -100,13 +95,13 @@ const UI = {
             <div class="absolute inset-0 bg-black/50" data-close="1"></div>
             <div class="relative max-w-md mx-auto mt-28 bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-xl">
                 <div class="flex items-center justify-between">
-                    <h3 class="text-lg font-bold text-gray-900 dark:text-white">管理员登录</h3>
+                    <h3 class="text-lg font-bold text-gray-900 dark:text-white" id="login-modal-title">管理员登录</h3>
                     <button type="button" class="text-gray-500 hover:text-gray-700 dark:hover:text-gray-200" data-close="1" aria-label="Close">
                         <i class="fas fa-times"></i>
                     </button>
                 </div>
                 <p id="login-hint" class="mt-3 text-sm text-gray-600 dark:text-gray-300"></p>
-                <div class="mt-4 space-y-3">
+                <div class="mt-4 space-y-3" id="login-fields-block">
                     <div>
                         <label class="text-sm font-semibold text-gray-700 dark:text-gray-200">账号（邮箱）</label>
                         <input id="login-email" class="mt-2 w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-3 text-gray-900 dark:text-white" placeholder="请输入邮箱" />
@@ -115,15 +110,15 @@ const UI = {
                         <label class="text-sm font-semibold text-gray-700 dark:text-gray-200">密码</label>
                         <input id="login-password" type="password" class="mt-2 w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-3 text-gray-900 dark:text-white" placeholder="请输入密码" />
                     </div>
-                    <p id="login-error" class="text-sm text-red-600"></p>
-                    <div class="flex items-center justify-end gap-3 pt-2">
-                        <button type="button" class="px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" data-close="1">
-                            取消
-                        </button>
-                        <button type="button" id="login-submit" class="px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors font-semibold">
-                            登录
-                        </button>
-                    </div>
+                </div>
+                <p id="login-error" class="text-sm text-red-600 mt-2"></p>
+                <div class="flex items-center justify-end gap-3 pt-2">
+                    <button type="button" class="px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" data-close="1">
+                        取消
+                    </button>
+                    <button type="button" id="login-submit" class="px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors font-semibold">
+                        登录
+                    </button>
                 </div>
             </div>
         `;
@@ -139,7 +134,8 @@ const UI = {
     openLoginModal(hint = '') {
         UI.ensureLoginModal();
         document.getElementById('login-error').textContent = '';
-        document.getElementById('login-hint').textContent = hint || '登录后可编辑/发帖/上传。';
+        document.getElementById('login-hint').textContent =
+            hint || '仅博主管理员可登录以编辑文章与上传资源；游客可直接评论与互动。';
         document.getElementById('login-modal').classList.remove('hidden');
         setTimeout(() => document.getElementById('login-email')?.focus(), 0);
     },
@@ -157,6 +153,7 @@ const UI = {
         err.textContent = '';
         try {
             await Auth.login(email, password);
+            await refreshAuthorFromApi();
             UI.closeLoginModal();
             UI.applyAuthState();
         } catch (e) {
@@ -167,27 +164,40 @@ const UI = {
     },
 
     applyAuthState() {
-        // admin-only：管理员才可见
+        const loggedIn = Auth.state.admin;
         document.querySelectorAll('.admin-only').forEach((el) => {
             el.classList.toggle('hidden', !Auth.state.admin);
         });
-        // guest-only：游客可见
         document.querySelectorAll('.guest-only').forEach((el) => {
-            el.classList.toggle('hidden', Auth.state.admin);
+            el.classList.toggle('hidden', loggedIn);
         });
-        // 头像缩略图：仅管理员显示真实头像；游客保持隐藏
         if (Auth.state.admin) {
-            Author.init();
+            Author.applyThumbToDom();
         } else {
             document.querySelectorAll('.author-avatar-thumb').forEach((el) => el.classList.add('hidden'));
         }
 
-        // 通知页面（用于动态列表在登录后刷新显示）
         window.dispatchEvent(new CustomEvent('auth-changed', { detail: { ...Auth.state } }));
+    },
+
+    installAdminNavGuards() {
+        document.addEventListener(
+            'click',
+            (e) => {
+                const el = e.target.closest('[data-require-admin="1"]');
+                if (!el) return;
+                if (Auth.state.admin) return;
+                e.preventDefault();
+                const hint =
+                    el.getAttribute('data-admin-hint') ||
+                    '此操作需要管理员登录：新增/修改/删除文章，或修改「关于我」资料。';
+                UI.openLoginModal(hint);
+            },
+            true
+        );
     }
 };
 
-// API请求封装
 const API = {
     get baseUrl() {
         return apiRoot();
@@ -211,7 +221,7 @@ const API = {
     },
 
     async getArticle(id) {
-        return this.get(`/articles/${id}`);
+        return this.get(`/articles/${encodeURIComponent(id)}`);
     },
 
     async getAuthor() {
@@ -265,7 +275,7 @@ const API = {
     },
 
     async updateArticle(id, payload) {
-        const url = `${this.baseUrl}/articles/${id}`;
+        const url = `${this.baseUrl}/articles/${encodeURIComponent(id)}`;
         const response = await fetch(url, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
@@ -286,7 +296,7 @@ const API = {
     },
 
     async deleteArticle(id) {
-        const url = `${this.baseUrl}/articles/${id}`;
+        const url = `${this.baseUrl}/articles/${encodeURIComponent(id)}`;
         const response = await fetch(url, { method: 'DELETE', credentials: 'include' });
         const data = await response.json().catch(() => ({}));
         if (!response.ok) {
@@ -295,10 +305,11 @@ const API = {
         return data;
     },
 
-    async uploadArticleImage(file) {
+    async uploadArticleImage(file, articleId) {
         const url = `${this.baseUrl}/uploads/article-image`;
         const form = new FormData();
         form.append('file', file);
+        if (articleId) form.append('article_id', String(articleId));
         const response = await fetch(url, { method: 'POST', body: form, credentials: 'include' });
         if (!response.ok) {
             let msg = `HTTP ${response.status}`;
@@ -311,10 +322,63 @@ const API = {
             throw new Error(msg);
         }
         return await response.json();
+    },
+
+    async registerArticleImageUrl(imageUrl, articleId) {
+        const body = { url: imageUrl };
+        if (articleId) body.article_id = String(articleId);
+        const response = await fetch(`${this.baseUrl}/uploads/article-image`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(body)
+        });
+        if (!response.ok) {
+            let msg = `HTTP ${response.status}`;
+            try {
+                const data = await response.json();
+                if (data?.error) msg = data.error;
+            } catch (e) {
+                // ignore
+            }
+            throw new Error(msg);
+        }
+        return await response.json();
+    },
+
+    async getCategories() {
+        return this.get('/categories');
+    },
+
+    async getTags() {
+        return this.get('/tags');
+    },
+
+    async postComment(articleId, body, guestName) {
+        const res = await fetch(`${this.baseUrl}/articles/${encodeURIComponent(articleId)}/comments`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ body, guest_name: guestName || '' })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
+        return data;
+    },
+
+    async postReaction(articleId, kind) {
+        const res = await fetch(`${this.baseUrl}/articles/${encodeURIComponent(articleId)}/reactions`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ kind })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
+        return data;
     }
 };
 
-// 联系方式/作者信息（前端不硬编码真实数据）
 const Contact = {
     data: {
         gitee: '',
@@ -323,86 +387,68 @@ const Contact = {
         qqQr: ''
     },
 
-    defaultQrPath() {
-        // 页面都在 frontend/ 下：file:// 时用相对路径；走服务端时用 /assets/
-        return window.location.protocol === 'file:' ? '../assets/qq_qr.svg' : '/assets/qq_qr.svg';
-    },
-
     applyToDom() {
         const { gitee, email, qq, qqQr } = this.data;
 
         const gNav = document.getElementById('contact-gitee');
-        if (gNav && gitee) gNav.href = gitee;
+        if (gNav) gNav.href = gitee || '#';
 
         const gHero = document.getElementById('hero-gitee');
-        if (gHero && gitee) gHero.href = gitee;
+        if (gHero) gHero.href = gitee || '#';
 
         const gAbout = document.getElementById('about-gitee');
-        if (gAbout && gitee) gAbout.href = gitee;
+        if (gAbout) gAbout.href = gitee || '#';
 
         const emailText = document.getElementById('email-text');
-        if (emailText && email) emailText.textContent = email;
+        if (emailText) emailText.textContent = email || '未配置';
 
         const qqText = document.getElementById('qq-text');
-        if (qqText && qq) qqText.textContent = qq;
+        if (qqText) qqText.textContent = qq || '未配置';
 
         const qr = document.getElementById('qq-qr');
-        if (qr) qr.src = qqQr || this.defaultQrPath();
+        if (qr) {
+            if (qqQr) {
+                qr.src = qqQr;
+            } else {
+                qr.removeAttribute('src');
+            }
+        }
 
         // about.html 的联系信息区
         const emailContact = document.getElementById('email-contact');
-        if (emailContact && email) emailContact.textContent = email;
+        if (emailContact) emailContact.textContent = email || '未配置';
 
         const githubContact = document.getElementById('github-contact');
-        if (githubContact && gitee) {
-            githubContact.href = gitee;
-            githubContact.textContent = gitee;
+        if (githubContact) {
+            if (gitee) {
+                githubContact.href = gitee;
+                githubContact.textContent = '打开链接';
+            } else {
+                githubContact.removeAttribute('href');
+                githubContact.textContent = '未配置';
+            }
         }
 
         const twitterContact = document.getElementById('twitter-contact');
-        if (twitterContact) twitterContact.textContent = '点击查看二维码';
+        if (twitterContact) twitterContact.textContent = qqQr ? '点击查看二维码' : '暂未配置二维码';
     },
 
-    async loadFromApi() {
+    async init(seed = {}) {
         if (window.location.protocol === 'file:') {
-            // file:// 无法同源请求后端，直接用占位/二维码默认值
-            this.data.qqQr ||= this.defaultQrPath();
+            this.data = {
+                gitee: seed.gitee ?? '',
+                email: seed.email ?? '',
+                qq: seed.qq ?? '',
+                qqQr: seed.qqQr ?? ''
+            };
             this.applyToDom();
-            return;
+            return null;
         }
-
-        try {
-            const author = await API.getAuthor();
-            const social = author?.social ?? {};
-            this.data.gitee = social.gitee ?? this.data.gitee;
-            this.data.email = social.email ?? this.data.email;
-            this.data.qq = social.qq ?? this.data.qq;
-            this.data.qqQr = social.qqQr ?? this.data.qqQr ?? this.defaultQrPath();
-        } catch (e) {
-            // 静默失败：不影响页面其它功能
-            this.data.qqQr ||= this.defaultQrPath();
-        } finally {
-            this.applyToDom();
-        }
-    },
-
-    init(seed = {}) {
-        this.data = {
-            gitee: seed.gitee ?? '',
-            email: seed.email ?? '',
-            qq: seed.qq ?? '',
-            qqQr: seed.qqQr ?? ''
-        };
-
-        if (!this.data.qqQr) this.data.qqQr = this.defaultQrPath();
-        this.applyToDom();
-        this.loadFromApi();
+        return refreshAuthorFromApi();
     }
 };
 
-// 作者信息（头像等）
 const Author = {
-    _initialized: false,
     data: {
         name: '',
         bio: '',
@@ -441,29 +487,6 @@ const Author = {
         });
     },
 
-    async loadFromApi() {
-        if (window.location.protocol === 'file:') return;
-        try {
-            const author = await API.getAuthor();
-            this.data.name = author?.name ?? this.data.name;
-            this.data.bio = author?.bio ?? this.data.bio;
-            this.data.avatar = author?.avatar ?? this.data.avatar;
-        } catch (e) {
-            // ignore
-        } finally {
-            this.applyAvatarToDom();
-            this.applyThumbToDom();
-        }
-    },
-
-    init() {
-        if (this._initialized) return;
-        this._initialized = true;
-        this.applyAvatarToDom();
-        this.applyThumbToDom();
-        this.loadFromApi();
-    },
-
     async uploadFromInput(inputEl) {
         const file = inputEl?.files?.[0];
         if (!file) throw new Error('请选择图片文件');
@@ -473,28 +496,84 @@ const Author = {
         // 避免缓存：追加时间戳
         const img = document.getElementById('author-avatar');
         if (img?.src) img.src = `${img.src.split('?')[0]}?t=${Date.now()}`;
+        await refreshAuthorFromApi();
         return author;
     }
 };
 
-// 页面初始化
+let _authorRefreshInflight = null;
+
+function applyAuthorOptionalFields(author) {
+    if (!author) return;
+    const nameEl = document.getElementById('author-name');
+    if (nameEl) nameEl.textContent = author.name || '';
+    const bioEl = document.getElementById('author-bio');
+    if (bioEl) bioEl.textContent = author.bio || '';
+    const skillsEl = document.getElementById('skills-container');
+    if (!skillsEl || !Array.isArray(author.skills)) return;
+    skillsEl.innerHTML = '';
+    if (!author.skills.length) return;
+    skillsEl.classList.add('mt-6', 'max-w-4xl', 'mx-auto');
+    author.skills.forEach((skill, index) => {
+        const tag = document.createElement('span');
+        tag.className = 'skill-tag';
+        tag.textContent = skill;
+        tag.style.animationDelay = `${index * 0.1}s`;
+        skillsEl.appendChild(tag);
+    });
+}
+
+async function refreshAuthorFromApi() {
+    if (_authorRefreshInflight) return _authorRefreshInflight;
+
+    const run = async () => {
+        if (window.location.protocol === 'file:') {
+            Contact.applyToDom();
+            return null;
+        }
+        try {
+            const author = await API.getAuthor();
+            const social = author?.social ?? {};
+            Contact.data.gitee = social.gitee ?? '';
+            Contact.data.email = social.email ?? '';
+            Contact.data.qq = social.qq ?? '';
+            Contact.data.qqQr = social.qqQr ?? '';
+            Contact.applyToDom();
+            Author.data.name = author?.name ?? '';
+            Author.data.bio = author?.bio ?? '';
+            Author.data.avatar = author?.avatar ?? '';
+            Author.applyAvatarToDom();
+            Author.applyThumbToDom();
+            applyAuthorOptionalFields(author);
+            document.getElementById('skills-error')?.classList?.add('hidden');
+            window.dispatchEvent(new CustomEvent('author-loaded', { detail: author }));
+            return author;
+        } catch (e) {
+            console.error('作者资料加载失败', e);
+            const nameEl = document.getElementById('author-name');
+            const bioEl = document.getElementById('author-bio');
+            if (nameEl) nameEl.textContent = '加载失败';
+            if (bioEl) bioEl.textContent = '请通过本站 http(s) 地址访问，并确认数据库与后端已启动。';
+            document.getElementById('skills-error')?.classList?.remove('hidden');
+            Contact.applyToDom();
+            return null;
+        }
+    };
+
+    _authorRefreshInflight = run().finally(() => {
+        _authorRefreshInflight = null;
+    });
+    return _authorRefreshInflight;
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     DarkMode.init();
-    // 初始化权限态（默认游客）
-    Auth.refresh().then(() => {
+    UI.installAdminNavGuards();
+    Auth.refresh().then(async () => {
+        await refreshAuthorFromApi();
         UI.applyAuthState();
     });
 
-    // 拦截“关于我”导航：游客点击弹出登录弹窗
-    document.querySelectorAll('a[href="about.html"]').forEach((a) => {
-        a.addEventListener('click', (e) => {
-            if (Auth.state.admin) return;
-            e.preventDefault();
-            UI.openLoginModal('您作为游客，无法编辑');
-        });
-    });
-
-    // 小灰人按钮：打开登录弹窗
     document.querySelectorAll('[data-auth-trigger="1"]').forEach((el) => {
         el.addEventListener('click', (e) => {
             e.preventDefault();
@@ -503,9 +582,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-// 处理浏览器“返回上一页”(bfcache) 场景：页面恢复但脚本不重新初始化
 window.addEventListener('pageshow', () => {
-    Auth.refresh().then(() => {
+    Auth.refresh().then(async () => {
+        await refreshAuthorFromApi();
         UI.applyAuthState();
     });
 });

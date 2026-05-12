@@ -300,42 +300,6 @@
         function openQQModal() { document.getElementById('qq-modal')?.classList.remove('hidden'); }
         function closeQQModal() { document.getElementById('qq-modal')?.classList.add('hidden'); }
 
-        // 加载作者信息
-        async function loadAuthorInfo() {
-            try {
-                const response = await fetch('/api/author');
-                if (!response.ok) throw new Error('author');
-                const author = await response.json();
-
-                // 更新个人信息
-                document.getElementById('author-name').textContent = author.name;
-                document.getElementById('author-bio').textContent = author.bio;
-
-                // 更新技能标签
-                displaySkills(author.skills);
-
-            } catch (error) {
-                console.error('获取作者信息失败:', error);
-                document.getElementById('author-name').textContent = 'zimu';
-                document.getElementById('author-bio').textContent = '无法从服务器加载简介，请确认已在 backend 目录运行 python app.py 后通过 http://localhost:5000 打开本站。';
-                displaySkills(['Python', 'JavaScript', 'Flask']);
-            }
-        }
-
-        // 显示技能
-        function displaySkills(skills) {
-            const container = document.getElementById('skills-container');
-            container.innerHTML = '';
-
-            skills.forEach((skill, index) => {
-                const tag = document.createElement('span');
-                tag.className = 'skill-tag';
-                tag.textContent = skill;
-                tag.style.animationDelay = `${index * 0.1}s`;
-                container.appendChild(tag);
-            });
-        }
-
         // 切换深色模式
         function toggleDarkMode() {
             const html = document.documentElement;
@@ -358,8 +322,8 @@
             menu.classList.toggle('hidden');
         }
 
-        // 页面加载时执行
-        document.addEventListener('DOMContentLoaded', () => {
+        // 页面加载时执行（作者姓名/简介/技能/头像/联系方式均由 script.js 中 refreshAuthorFromApi → /api/author 从数据库填充）
+        document.addEventListener('DOMContentLoaded', async () => {
             // 检查深色模式设置
             const darkMode = localStorage.getItem('darkMode');
             if (darkMode === 'true') {
@@ -367,10 +331,7 @@
                 document.getElementById('theme-icon').className = 'fas fa-sun';
             }
 
-            // 加载作者信息
-            loadAuthorInfo();
-            Contact.init();
-            Author.init();
+            await Contact.init();
         });
 
         function pickAvatarFile() {
