@@ -186,4 +186,4 @@ blog/
 
 本项目以 **[MIT License](./LICENSE)** 授权发布。使用、复制、修改与分发时，请保留 `LICENSE` 中的版权声明与许可全文。
 
-版权所有 © 2025 Yoyiming（以 `LICENSE` 文件记载为准）。
+版权所有 © 2025 Mujing（以 `LICENSE` 文件记载为准）。
