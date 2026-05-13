@@ -30,7 +30,7 @@ CORS(app, supports_credentials=True)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 FRONTEND_DIR = os.path.abspath(os.path.join(BASE_DIR, '..', 'frontend'))
-ASSETS_DIR = os.path.abspath(os.path.join(BASE_DIR, '..', 'assets'))
+ASSETS_DIR = os.path.abspath(os.path.join(FRONTEND_DIR, 'assets'))
 
 
 def _get_env(name, default=None):
@@ -48,10 +48,22 @@ postgres_store.bootstrap_if_needed(ADMIN_EMAIL or '', ADMIN_PASSWORD or '')
 
 
 @app.before_request
-def _ensure_visitor_key():
-    if 'vkey' not in session:
-        session['vkey'] = secrets.token_hex(16)
+def _ensure_guest_visitor():
+    """未登录用户：保证 session 中有 visitor_id，并在库中有对应 visitor 行（首次访问即 first_seen_at）。"""
+    if _session_user_id():
+        return
+    postgres_store.ensure_session_visitor_id(session)
     session.permanent = True
+
+
+def _session_visitor_id() -> uuid.UUID | None:
+    raw = session.get("visitor_id")
+    if not raw:
+        return None
+    try:
+        return uuid.UUID(str(raw))
+    except Exception:
+        return None
 
 
 def _session_user_id() -> uuid.UUID | None:
@@ -133,14 +145,19 @@ def create_article():
     uid = _session_user_id()
     if not uid:
         return jsonify({'error': '未登录'}), 401
-    out = postgres_store.create_article(payload, uid)
+    try:
+        out = postgres_store.create_article(payload, uid)
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
     return jsonify(out), 201
 
 
 def _viewer_for_article():
     uid = _session_user_id()
-    vk = session.get('vkey') if not uid else None
-    return uid, vk
+    if uid:
+        return uid, None
+    postgres_store.ensure_session_visitor_id(session)
+    return None, _session_visitor_id()
 
 
 @app.route('/api/articles/<article_id>', methods=['GET'])
@@ -149,8 +166,8 @@ def get_article(article_id):
         aid = uuid.UUID(str(article_id))
     except Exception:
         return jsonify({'error': '文章未找到'}), 404
-    uid, vk = _viewer_for_article()
-    row = postgres_store.get_article_dict(aid, allow_draft=is_admin(), viewer_user_id=uid, visitor_key=vk)
+    uid, vid = _viewer_for_article()
+    row = postgres_store.get_article_dict(aid, allow_draft=is_admin(), viewer_user_id=uid, visitor_id=vid)
     if not row:
         return jsonify({'error': '文章未找到'}), 404
     return jsonify(row)
@@ -172,13 +189,18 @@ def post_comment(article_id):
         else:
             if not guest_name:
                 return jsonify({'error': '请填写昵称后再发表评论'}), 400
-            postgres_store.add_article_comment(aid, body, user_id=None, guest_name=guest_name)
+            vid = _session_visitor_id()
+            if not vid:
+                return jsonify({'error': '会话异常，请刷新页面'}), 400
+            postgres_store.add_article_comment(
+                aid, body, user_id=None, guest_name=guest_name, visitor_id=vid
+            )
     except LookupError:
         return jsonify({'error': '文章未找到'}), 404
     except ValueError as e:
         return jsonify({'error': str(e)}), 400
-    uid2, vk = _viewer_for_article()
-    row = postgres_store.get_article_dict(aid, allow_draft=is_admin(), viewer_user_id=uid2, visitor_key=vk)
+    uid2, vid2 = _viewer_for_article()
+    row = postgres_store.get_article_dict(aid, allow_draft=is_admin(), viewer_user_id=uid2, visitor_id=vid2)
     return jsonify({'ok': True, 'comments': row.get('comments', []) if row else []})
 
 
@@ -191,10 +213,14 @@ def post_reaction(article_id):
     payload = request.get_json(silent=True) or {}
     kind = (payload.get('kind') or 'none').strip()
     uid = _session_user_id()
-    vk = session.get('vkey')
+    if uid:
+        vid = None
+    else:
+        postgres_store.ensure_session_visitor_id(session)
+        vid = _session_visitor_id()
     try:
         out = postgres_store.set_article_reaction(
-            aid, kind, user_id=uid, visitor_key=vk if not uid else None
+            aid, kind, user_id=uid, visitor_id=vid if not uid else None
         )
     except LookupError:
         return jsonify({'error': '文章未找到'}), 404
@@ -210,7 +236,10 @@ def update_article(article_id):
         aid = uuid.UUID(str(article_id))
     except Exception:
         return jsonify({'error': '文章未找到'}), 404
-    out = postgres_store.update_article(aid, request.get_json(silent=True) or {})
+    try:
+        out = postgres_store.update_article(aid, request.get_json(silent=True) or {})
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
     if not out:
         return jsonify({'error': '文章未找到'}), 404
     return jsonify(out)
@@ -294,12 +323,16 @@ def me():
         session.pop('server_nonce', None)
     uid = _session_user_id()
     if not uid:
+        postgres_store.ensure_session_visitor_id(session)
+        vid = _session_visitor_id()
+        vinf = postgres_store.get_visitor_public(vid) if vid else None
         return jsonify(
             {
                 'admin': False,
                 'email': None,
                 'nickname': None,
                 'user_id': None,
+                'visitor': vinf,
             }
         )
     role = session.get('user_role')
@@ -309,12 +342,16 @@ def me():
         session.pop('user_role', None)
         session.pop('is_admin', None)
         session.pop('server_nonce', None)
+        postgres_store.ensure_session_visitor_id(session)
+        vid = _session_visitor_id()
+        vinf = postgres_store.get_visitor_public(vid) if vid else None
         return jsonify(
             {
                 'admin': False,
                 'email': None,
                 'nickname': None,
                 'user_id': None,
+                'visitor': vinf,
             }
         )
     em = postgres_store.user_email_by_id(uid)
@@ -325,8 +362,28 @@ def me():
             'email': em,
             'nickname': nick,
             'user_id': str(uid),
+            'visitor': None,
         }
     )
+
+
+@app.route('/api/visitor/nickname', methods=['POST'])
+def visitor_set_nickname():
+    if _session_user_id():
+        return jsonify({'error': '已登录用户请使用「关于我」修改资料'}), 400
+    payload = request.get_json(silent=True) or {}
+    nick = (payload.get('nickname') or '').strip()
+    if not nick:
+        return jsonify({'error': '请填写昵称'}), 400
+    postgres_store.ensure_session_visitor_id(session)
+    vid = _session_visitor_id()
+    if not vid:
+        return jsonify({'error': '会话异常，请刷新页面'}), 400
+    try:
+        postgres_store.update_visitor_nickname(vid, nick)
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    return jsonify({'ok': True, 'visitor': postgres_store.get_visitor_public(vid)})
 
 
 @app.route('/api/login', methods=['POST'])
@@ -336,6 +393,7 @@ def login():
     password = (payload.get('password') or '').strip()
     row = postgres_store.authenticate_user(email, password)
     if row:
+        session.pop('visitor_id', None)
         session['user_id'] = row['id']
         session['user_role'] = row['role']
         session['is_admin'] = row['role'] == 'admin'
@@ -358,7 +416,6 @@ def login():
 @app.route('/api/logout', methods=['POST'])
 def logout():
     session.clear()
-    session['vkey'] = secrets.token_hex(16)
     return jsonify({'ok': True})
 
 

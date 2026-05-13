@@ -42,7 +42,8 @@
                     <button type="button" onclick="openQQModal()" class="hover:text-indigo-600 transition-colors" aria-label="QQ">
                         <i class="fab fa-qq text-lg"></i>
                     </button>
-                    <a href="about.html" class="ml-1 guest-only" data-auth-trigger="1" aria-label="登录">
+                    <a href="about.html" class="ml-1 guest-only" data-auth-trigger="1" aria-label="关于博主 / 登录">
+                        <img class="author-avatar-thumb hidden" alt="博主头像" />
                         <span class="guest-avatar-btn"><i class="fas fa-user"></i></span>
                     </a>
                     <a href="about.html" class="ml-1 admin-only hidden" aria-label="Avatar">
@@ -101,15 +102,14 @@
                 </div>
             </div>
 
-            <div class="mt-4 grid gap-4 md:grid-cols-2">
-                <div>
-                    <label class="text-sm font-semibold text-gray-700 dark:text-gray-200">分类</label>
-                    <select id="category_id" class="mt-2 w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-3 text-gray-900 dark:text-white"></select>
-                </div>
-                <div>
-                    <label class="text-sm font-semibold text-gray-700 dark:text-gray-200">标签（Ctrl / ⌘ 多选）</label>
-                    <select id="tag_ids" multiple size="8" class="mt-2 w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-2 text-sm text-gray-900 dark:text-white"></select>
-                </div>
+            <div class="mt-4">
+                <label class="text-sm font-semibold text-gray-700 dark:text-gray-200">分类</label>
+                <select id="category_id" class="mt-2 w-full max-w-md rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-3 text-gray-900 dark:text-white"></select>
+            </div>
+            <div class="mt-4">
+                <label class="text-sm font-semibold text-gray-700 dark:text-gray-200">标签</label>
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">点击标签块选中或取消，可多选。</p>
+                <div id="tag-pills" class="mt-3 flex flex-wrap gap-2" role="group" aria-label="文章标签"></div>
             </div>
 
             <div class="mt-4 flex flex-wrap items-center gap-3">
@@ -174,20 +174,20 @@
         </div>
     </div>
 
+    <!-- 联系方式弹窗：QQ -->
     <div id="qq-modal" class="hidden fixed inset-0 z-[1100]">
         <div class="absolute inset-0 bg-black/50" onclick="closeQQModal()"></div>
-        <div class="relative max-w-md mx-auto mt-28 bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-xl">
+        <div class="relative max-w-md mx-auto mt-32 bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-xl">
             <div class="flex items-center justify-between">
                 <h3 class="text-lg font-bold text-gray-900 dark:text-white">QQ</h3>
                 <button type="button" class="text-gray-500 hover:text-gray-700 dark:hover:text-gray-200" onclick="closeQQModal()" aria-label="Close">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
-            <p class="mt-4 text-gray-600 dark:text-gray-300"></p>
-            <div class="mt-4 flex justify-center">
-                <img id="qq-qr" src="" alt="QQ QR" class="w-56 h-56 rounded-xl border border-gray-200 dark:border-gray-700 bg-white" />
+            <p class="mt-4 text-gray-600 dark:text-gray-300">QQ：</p>
+            <div class="mt-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-4 py-3 font-mono text-sm text-gray-900 dark:text-white">
+                <span id="qq-text">加载中...</span>
             </div>
-            <p class="mt-3 text-center text-sm text-gray-500">QQ：<span id="qq-text">加载中...</span></p>
         </div>
     </div>
 
@@ -324,14 +324,67 @@
             }
         }
 
+        const TAG_PILL_BASE =
+            'tag-pill inline-flex items-center rounded-xl border px-3 py-2 text-sm font-medium transition select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900 active:scale-[0.98]';
+        const TAG_PILL_ON =
+            'border-indigo-600 bg-indigo-600 text-white shadow-md dark:shadow-indigo-900/40';
+        const TAG_PILL_OFF =
+            'border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 hover:border-indigo-400 hover:bg-indigo-50 dark:hover:border-indigo-500 dark:hover:bg-gray-700/80';
+
+        function applyTagPillVisual(btn, selected) {
+            btn.className = `${TAG_PILL_BASE} ${selected ? TAG_PILL_ON : TAG_PILL_OFF}`;
+            btn.setAttribute('aria-pressed', selected ? 'true' : 'false');
+        }
+
+        function renderTagPills(tags) {
+            const wrap = document.getElementById('tag-pills');
+            if (!wrap) return;
+            wrap.replaceChildren();
+            (tags || []).forEach((t) => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.dataset.tagId = String(t.id);
+                btn.textContent = t.name || t.slug || '';
+                applyTagPillVisual(btn, false);
+                wrap.appendChild(btn);
+            });
+        }
+
+        function initTagPillsClick() {
+            const wrap = document.getElementById('tag-pills');
+            if (!wrap || wrap.dataset.bound === '1') return;
+            wrap.dataset.bound = '1';
+            wrap.addEventListener('click', (e) => {
+                const btn = e.target.closest('button.tag-pill');
+                if (!btn || !wrap.contains(btn)) return;
+                const next = btn.getAttribute('aria-pressed') !== 'true';
+                applyTagPillVisual(btn, next);
+            });
+        }
+
+        function setTagPillsFromArticleTags(tags) {
+            const ids = new Set((tags || []).map((x) => String(x.id)));
+            const wrap = document.getElementById('tag-pills');
+            if (!wrap) return;
+            wrap.querySelectorAll('button.tag-pill').forEach((btn) => {
+                applyTagPillVisual(btn, ids.has(btn.dataset.tagId));
+            });
+        }
+
+        function getSelectedTagIds() {
+            const wrap = document.getElementById('tag-pills');
+            if (!wrap) return [];
+            return Array.from(wrap.querySelectorAll('button.tag-pill[aria-pressed="true"]')).map((b) => b.dataset.tagId);
+        }
+
         async function populateCategoryTags() {
             const catSel = document.getElementById('category_id');
-            const tagSel = document.getElementById('tag_ids');
-            if (!catSel || !tagSel) return;
+            const tagWrap = document.getElementById('tag-pills');
+            if (!catSel || !tagWrap) return;
             try {
                 const [cats, tags] = await Promise.all([API.getCategories(), API.getTags()]);
                 catSel.innerHTML = (cats || []).map((c) => `<option value="${c.id}">${c.name}</option>`).join('');
-                tagSel.innerHTML = (tags || []).map((t) => `<option value="${t.id}">${t.name}</option>`).join('');
+                renderTagPills(tags);
             } catch (e) {
                 console.error(e);
             }
@@ -353,13 +406,7 @@
                 const csel = document.getElementById('category_id');
                 if (csel) csel.value = a.category.id;
             }
-            const tagSel = document.getElementById('tag_ids');
-            if (tagSel && a.tags) {
-                const ids = new Set((a.tags || []).map((t) => String(t.id)));
-                Array.from(tagSel.options).forEach((o) => {
-                    o.selected = ids.has(o.value);
-                });
-            }
+            setTagPillsFromArticleTags(a.tags || []);
             schedulePreview();
             if (status) status.textContent = '';
         }
@@ -380,11 +427,8 @@
                 };
                 const cid = document.getElementById('category_id')?.value;
                 if (cid) payload.category_id = cid;
-                const tagSel = document.getElementById('tag_ids');
-                if (tagSel) {
-                    const tag_ids = Array.from(tagSel.selectedOptions).map((o) => o.value);
-                    if (tag_ids.length) payload.tag_ids = tag_ids;
-                }
+                const tag_ids = getSelectedTagIds();
+                if (tag_ids.length) payload.tag_ids = tag_ids;
                 let saved;
                 if (currentId) {
                     saved = await API.updateArticle(currentId, payload);
@@ -407,6 +451,7 @@
         }
 
         document.addEventListener('DOMContentLoaded', async () => {
+            initTagPillsClick();
             await Contact.init();
             await Auth.refresh();
             await populateCategoryTags();

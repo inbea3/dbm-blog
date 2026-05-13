@@ -61,28 +61,155 @@ def _slug_base(title: str) -> str:
     return (s[:80] if s else "post")
 
 
-def _ensure_visitor_reaction_and_comment_guest(cur) -> None:
+def _table_has_column(cur, table: str, column: str) -> bool:
+    cur.execute(
+        """SELECT 1 FROM information_schema.columns
+           WHERE table_schema = 'public' AND table_name = %s AND column_name = %s LIMIT 1""",
+        (table, column),
+    )
+    return cur.fetchone() is not None
+
+
+def _ensure_visitor_platform(cur) -> None:
+    """游客表 visitor + 评论/访客赞踩外键；将旧 article_visitor_reaction(visitor_key) 迁到 visitor_id。"""
     cur.execute(
         """
-        CREATE TABLE IF NOT EXISTS article_visitor_reaction (
-            article_id UUID NOT NULL REFERENCES article(id) ON DELETE CASCADE,
-            visitor_key VARCHAR(64) NOT NULL,
-            kind reaction_kind NOT NULL,
-            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-            PRIMARY KEY (article_id, visitor_key)
+        CREATE TABLE IF NOT EXISTS visitor (
+            id UUID PRIMARY KEY,
+            nickname VARCHAR(100),
+            first_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )
         """
     )
+    cur.execute("ALTER TABLE comment ADD COLUMN IF NOT EXISTS guest_name VARCHAR(100)")
+    cur.execute("ALTER TABLE comment ADD COLUMN IF NOT EXISTS visitor_id UUID")
     cur.execute(
         """
-        CREATE INDEX IF NOT EXISTS idx_article_visitor_reaction_article
-        ON article_visitor_reaction(article_id)
+        DO $bd$
+        BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'comment_visitor_id_fkey') THEN
+                ALTER TABLE comment
+                    ADD CONSTRAINT comment_visitor_id_fkey
+                    FOREIGN KEY (visitor_id) REFERENCES visitor(id) ON DELETE SET NULL;
+            END IF;
+        END $bd$;
         """
     )
-    cur.execute("ALTER TABLE comment ADD COLUMN IF NOT EXISTS guest_name VARCHAR(100)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_comment_visitor_id ON comment(visitor_id)")
+
+    cur.execute(
+        """SELECT EXISTS (
+            SELECT 1 FROM information_schema.tables
+            WHERE table_schema = 'public' AND table_name = 'article_visitor_reaction'
+        )"""
+    )
+    avr_exists = cur.fetchone()[0]
+
+    if not avr_exists:
+        cur.execute(
+            """
+            CREATE TABLE article_visitor_reaction (
+                article_id UUID NOT NULL REFERENCES article(id) ON DELETE CASCADE,
+                visitor_id UUID NOT NULL REFERENCES visitor(id) ON DELETE CASCADE,
+                kind reaction_kind NOT NULL,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                PRIMARY KEY (article_id, visitor_id)
+            )
+            """
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_article_visitor_reaction_article ON article_visitor_reaction(article_id)"
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_article_visitor_reaction_visitor ON article_visitor_reaction(visitor_id)"
+        )
+        return
+
+    has_vkey = _table_has_column(cur, "article_visitor_reaction", "visitor_key")
+    has_vid = _table_has_column(cur, "article_visitor_reaction", "visitor_id")
+
+    if has_vkey and not has_vid:
+        cur.execute("SELECT DISTINCT visitor_key FROM article_visitor_reaction WHERE visitor_key IS NOT NULL")
+        vkeys = [r[0] for r in cur.fetchall()]
+        ns = uuid.NAMESPACE_URL
+        for vk in vkeys:
+            vk_s = _safe_text(vk)
+            if not vk_s:
+                continue
+            vid = uuid.uuid5(ns, "blog:vkey:" + vk_s)
+            cur.execute("SELECT 1 FROM visitor WHERE id = %s", (vid,))
+            if not cur.fetchone():
+                cur.execute(
+                    "SELECT MIN(updated_at) FROM article_visitor_reaction WHERE visitor_key = %s",
+                    (vk_s,),
+                )
+                rmin = cur.fetchone()[0]
+                cur.execute(
+                    "INSERT INTO visitor (id, nickname, first_seen_at) VALUES (%s, NULL, COALESCE(%s, NOW()))",
+                    (vid, rmin),
+                )
+        cur.execute("ALTER TABLE article_visitor_reaction ADD COLUMN visitor_id UUID")
+        for vk in vkeys:
+            vk_s = _safe_text(vk)
+            if not vk_s:
+                continue
+            vid = uuid.uuid5(ns, "blog:vkey:" + vk_s)
+            cur.execute(
+                "UPDATE article_visitor_reaction SET visitor_id = %s WHERE visitor_key = %s",
+                (vid, vk_s),
+            )
+        cur.execute("DELETE FROM article_visitor_reaction WHERE visitor_id IS NULL")
+        cur.execute("ALTER TABLE article_visitor_reaction DROP CONSTRAINT IF EXISTS article_visitor_reaction_pkey")
+        cur.execute("ALTER TABLE article_visitor_reaction DROP COLUMN visitor_key")
+        cur.execute("ALTER TABLE article_visitor_reaction ALTER COLUMN visitor_id SET NOT NULL")
+        cur.execute(
+            "ALTER TABLE article_visitor_reaction ADD CONSTRAINT article_visitor_reaction_pkey PRIMARY KEY (article_id, visitor_id)"
+        )
+        cur.execute(
+            """
+            DO $bd$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM pg_constraint WHERE conname = 'article_visitor_reaction_visitor_id_fkey'
+                ) THEN
+                    ALTER TABLE article_visitor_reaction
+                        ADD CONSTRAINT article_visitor_reaction_visitor_id_fkey
+                        FOREIGN KEY (visitor_id) REFERENCES visitor(id) ON DELETE CASCADE;
+                END IF;
+            END $bd$;
+            """
+        )
+
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_article_visitor_reaction_article ON article_visitor_reaction(article_id)"
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_article_visitor_reaction_visitor ON article_visitor_reaction(visitor_id)"
+    )
 
 
 def _ensure_schema(cur) -> None:
+    # 若曾把枚举改成 profile_image，启动时改回 avatar（与 create_postgresql.sql 一致）
+    cur.execute(
+        """
+        DO $mk$
+        BEGIN
+            IF EXISTS (
+                SELECT 1 FROM pg_enum e
+                JOIN pg_type t ON t.oid = e.enumtypid
+                JOIN pg_namespace n ON n.oid = t.typnamespace
+                WHERE n.nspname = 'public' AND t.typname = 'media_kind' AND e.enumlabel = 'profile_image'
+            ) AND NOT EXISTS (
+                SELECT 1 FROM pg_enum e
+                JOIN pg_type t ON t.oid = e.enumtypid
+                JOIN pg_namespace n ON n.oid = t.typnamespace
+                WHERE n.nspname = 'public' AND t.typname = 'media_kind' AND e.enumlabel = 'avatar'
+            ) THEN
+                ALTER TYPE media_kind RENAME VALUE 'profile_image' TO 'avatar';
+            END IF;
+        END $mk$;
+        """
+    )
     cur.execute("ALTER TABLE article ADD COLUMN IF NOT EXISTS summary TEXT")
     cur.execute(
         "ALTER TABLE article ADD COLUMN IF NOT EXISTS style VARCHAR(64) NOT NULL DEFAULT 'default'"
@@ -121,7 +248,7 @@ def _ensure_schema(cur) -> None:
     cur.execute(
         "CREATE INDEX IF NOT EXISTS idx_media_asset_article_id ON media_asset(article_id) WHERE article_id IS NOT NULL"
     )
-    _ensure_visitor_reaction_and_comment_guest(cur)
+    _ensure_visitor_platform(cur)
 
 
 def bootstrap_if_needed(admin_email: str, admin_password_plain: str) -> None:
@@ -135,14 +262,6 @@ def bootstrap_if_needed(admin_email: str, admin_password_plain: str) -> None:
             with conn.cursor() as cur:
                 cur.execute("SELECT pg_advisory_xact_lock(%s)", (928374651,))
                 _ensure_schema(cur)
-                cur.execute("SELECT 1 FROM category WHERE slug = %s LIMIT 1", ("uncategorized",))
-                if not cur.fetchone():
-                    cid = uuid.uuid4()
-                    cur.execute(
-                        """INSERT INTO category (id, name, slug)
-                           VALUES (%s, %s, %s)""",
-                        (cid, "未分类", "uncategorized"),
-                    )
                 cur.execute("""SELECT COUNT(*) FROM "user" WHERE role = 'admin'""")
                 admin_count = cur.fetchone()[0]
                 if admin_count == 0:
@@ -192,6 +311,55 @@ def _ensure_guest_comment_user(cur) -> uuid.UUID:
     )
     _guest_comment_user_id = gid
     return gid
+
+
+def ensure_session_visitor_id(session_obj: Any) -> uuid.UUID:
+    """为未登录访客在 DB 中创建一行 visitor，并把 UUID 写入 Flask session['visitor_id']。"""
+    raw = session_obj.get("visitor_id")
+    if raw:
+        return uuid.UUID(str(raw))
+    vid = uuid.uuid4()
+    with get_neon_database().connection() as conn:
+        with conn.transaction():
+            with conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO visitor (id, nickname, first_seen_at) VALUES (%s, NULL, NOW())",
+                    (vid,),
+                )
+    session_obj["visitor_id"] = str(vid)
+    return vid
+
+
+def get_visitor_public(visitor_id: uuid.UUID | None) -> dict[str, Any] | None:
+    if not visitor_id:
+        return None
+    with get_neon_database().connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT id, nickname, first_seen_at FROM visitor WHERE id = %s",
+                (visitor_id,),
+            )
+            row = cur.fetchone()
+            if not row:
+                return None
+            vid, nick, fs = row
+            return {
+                "id": str(vid),
+                "nickname": (nick or "").strip(),
+                "first_seen_at": fs.isoformat() if fs else "",
+            }
+
+
+def update_visitor_nickname(visitor_id: uuid.UUID, nickname: str) -> None:
+    nn = _safe_text(nickname)[:80]
+    if not nn:
+        raise ValueError("请填写昵称")
+    with get_neon_database().connection() as conn:
+        with conn.transaction():
+            with conn.cursor() as cur:
+                cur.execute("UPDATE visitor SET nickname = %s WHERE id = %s", (nn, visitor_id))
+                if cur.rowcount == 0:
+                    raise ValueError("visitor not found")
 
 
 def get_admin_user_id() -> uuid.UUID | None:
@@ -285,10 +453,7 @@ def get_author_json() -> dict[str, Any]:
             )
             social: dict[str, str] = {}
             for ch, label, val in cur.fetchall():
-                lb = (label or "").strip().lower()
-                if ch == "other" and lb == "qqqr":
-                    social["qqQr"] = val
-                elif ch in ("gitee", "email", "qq", "wechat"):
+                if ch in ("gitee", "email", "qq", "wechat"):
                     social[ch] = val
 
             return {"name": name, "bio": bio, "avatar": avatar, "skills": skills, "social": social}
@@ -368,14 +533,6 @@ def article_exists(article_id: uuid.UUID) -> bool:
         with conn.cursor() as cur:
             cur.execute("SELECT 1 FROM article WHERE id = %s LIMIT 1", (article_id,))
             return cur.fetchone() is not None
-
-
-def _default_category_id(cur) -> uuid.UUID:
-    cur.execute("SELECT id FROM category WHERE slug = %s LIMIT 1", ("uncategorized",))
-    row = cur.fetchone()
-    if not row:
-        raise RuntimeError("missing default category")
-    return row[0]
 
 
 def _pick_unique_slug(cur, base: str) -> str:
@@ -478,7 +635,7 @@ def get_article_dict(
     aid: uuid.UUID,
     allow_draft: bool,
     viewer_user_id: uuid.UUID | None = None,
-    visitor_key: str | None = None,
+    visitor_id: uuid.UUID | None = None,
 ) -> dict[str, Any] | None:
     with get_neon_database().connection() as conn:
         with conn.cursor() as cur:
@@ -542,28 +699,35 @@ def get_article_dict(
             cc, lk, dk = cur.fetchone()
 
             cur.execute(
-                """SELECT c.id, c.body, c.created_at, c.guest_name, u.id AS uid, u.email,
-                          COALESCE(NULLIF(TRIM(up.nickname), ''), SPLIT_PART(u.email, '@', 1)) AS nick
+                """SELECT c.id, c.body, c.created_at, c.guest_name, c.visitor_id, u.id, u.email,
+                          v.nickname AS visitor_nick,
+                          COALESCE(NULLIF(TRIM(up.nickname), ''), SPLIT_PART(u.email, '@', 1)) AS nick,
+                          u.role::text AS user_role
                    FROM comment c
                    JOIN "user" u ON u.id = c.user_id
                    LEFT JOIN user_profile up ON up.user_id = u.id
+                   LEFT JOIN visitor v ON v.id = c.visitor_id
                    WHERE c.article_id = %s
                    ORDER BY c.created_at ASC""",
                 (aid,),
             )
             comments_out: list[dict[str, Any]] = []
             for r in cur.fetchall():
-                cid, cbody, cat, gn, uid, uemail, nick = r
-                if (uemail or "").lower() == GUEST_COMMENT_EMAIL.lower():
-                    label = _safe_text(gn) or "访客"
+                cid, cbody, cat, gn, vis_id, uid, uemail, visitor_nick, nick, user_role = r
+                guest_sys = (uemail or "").lower() == GUEST_COMMENT_EMAIL.lower()
+                if guest_sys:
+                    label = _safe_text(visitor_nick) or _safe_text(gn) or "访客"
+                    is_admin_comment = False
                 else:
                     label = _safe_text(nick) or (uemail or "").split("@")[0]
+                    is_admin_comment = (user_role or "").strip().lower() == "admin"
                 comments_out.append(
                     {
                         "id": str(cid),
                         "body": cbody or "",
                         "created_at": cat.isoformat() if cat else "",
                         "author": label,
+                        "is_admin": is_admin_comment,
                     }
                 )
 
@@ -576,10 +740,10 @@ def get_article_dict(
                 r2 = cur.fetchone()
                 if r2:
                     mine = r2[0]
-            elif visitor_key:
+            elif visitor_id:
                 cur.execute(
-                    "SELECT kind::text FROM article_visitor_reaction WHERE article_id = %s AND visitor_key = %s",
-                    (aid, visitor_key),
+                    "SELECT kind::text FROM article_visitor_reaction WHERE article_id = %s AND visitor_id = %s",
+                    (aid, visitor_id),
                 )
                 r2 = cur.fetchone()
                 if r2:
@@ -634,16 +798,16 @@ def _replace_article_tags(cur, article_id: uuid.UUID, tag_ids: list[uuid.UUID]) 
 
 def _resolve_category_id(cur, payload: dict[str, Any]) -> uuid.UUID:
     raw = payload.get("category_id")
-    if raw:
-        try:
-            cid = uuid.UUID(str(raw))
-        except Exception:
-            cid = None
-        if cid:
-            cur.execute("SELECT 1 FROM category WHERE id = %s", (cid,))
-            if cur.fetchone():
-                return cid
-    return _default_category_id(cur)
+    if raw is None or (isinstance(raw, str) and not raw.strip()):
+        raise ValueError("请提供有效的 category_id（须为已存在的分类 UUID）")
+    try:
+        cid = uuid.UUID(str(raw).strip())
+    except Exception:
+        raise ValueError("category_id 格式无效，须为 UUID") from None
+    cur.execute("SELECT 1 FROM category WHERE id = %s", (cid,))
+    if not cur.fetchone():
+        raise ValueError("分类不存在，请检查 category_id")
+    return cid
 
 
 def get_guest_comment_user_id() -> uuid.UUID:
@@ -691,13 +855,13 @@ def create_article(payload: dict[str, Any], author_id: uuid.UUID) -> dict[str, A
                 )
                 _replace_article_tags(cur, aid, tag_ids)
 
-    out = get_article_dict(aid, allow_draft=True, viewer_user_id=None, visitor_key=None)
+    out = get_article_dict(aid, allow_draft=True, viewer_user_id=None, visitor_id=None)
     assert out
     return out
 
 
 def update_article(aid: uuid.UUID, payload: dict[str, Any]) -> dict[str, Any] | None:
-    existing = get_article_dict(aid, allow_draft=True, viewer_user_id=None, visitor_key=None)
+    existing = get_article_dict(aid, allow_draft=True, viewer_user_id=None, visitor_id=None)
     if not existing:
         return None
 
@@ -744,7 +908,7 @@ def update_article(aid: uuid.UUID, payload: dict[str, Any]) -> dict[str, Any] | 
                 if tag_ids is not None:
                     _replace_article_tags(cur, aid, tag_ids)
 
-    out = get_article_dict(aid, allow_draft=True, viewer_user_id=None, visitor_key=None)
+    out = get_article_dict(aid, allow_draft=True, viewer_user_id=None, visitor_id=None)
     assert out
     return out
 
@@ -798,6 +962,7 @@ def add_article_comment(
     *,
     user_id: uuid.UUID | None,
     guest_name: str | None,
+    visitor_id: uuid.UUID | None = None,
 ) -> dict[str, Any]:
     text = _safe_text(body)
     if not text:
@@ -813,17 +978,20 @@ def add_article_comment(
                     raise LookupError("article not found")
                 if user_id and user_id != gid:
                     cur.execute(
-                        """INSERT INTO comment (id, body, article_id, user_id, guest_name)
-                           VALUES (%s, %s, %s, %s, NULL)""",
+                        """INSERT INTO comment (id, body, article_id, user_id, guest_name, visitor_id)
+                           VALUES (%s, %s, %s, %s, NULL, NULL)""",
                         (cid, text, article_id, user_id),
                     )
                 else:
+                    if not visitor_id:
+                        raise ValueError("visitor_id required")
                     if not gn:
                         raise ValueError("guest_name required")
+                    cur.execute("UPDATE visitor SET nickname = %s WHERE id = %s", (gn, visitor_id))
                     cur.execute(
-                        """INSERT INTO comment (id, body, article_id, user_id, guest_name)
-                           VALUES (%s, %s, %s, %s, %s)""",
-                        (cid, text, article_id, gid, gn),
+                        """INSERT INTO comment (id, body, article_id, user_id, guest_name, visitor_id)
+                           VALUES (%s, %s, %s, %s, %s, %s)""",
+                        (cid, text, article_id, gid, gn, visitor_id),
                     )
     return {"id": str(cid), "ok": True}
 
@@ -833,11 +1001,10 @@ def set_article_reaction(
     kind: str,
     *,
     user_id: uuid.UUID | None,
-    visitor_key: str | None,
+    visitor_id: uuid.UUID | None,
 ) -> dict[str, Any]:
     if kind not in ("like", "dislike", "none"):
         raise ValueError("bad kind")
-    vk = _safe_text(visitor_key)[:80] if visitor_key else None
     with get_neon_database().connection() as conn:
         with conn.transaction():
             with conn.cursor() as cur:
@@ -858,21 +1025,21 @@ def set_article_reaction(
                             (user_id, article_id, kind),
                         )
                 else:
-                    if not vk:
-                        raise ValueError("visitor_key required")
+                    if not visitor_id:
+                        raise ValueError("visitor_id required")
                     if kind == "none":
                         cur.execute(
-                            "DELETE FROM article_visitor_reaction WHERE article_id = %s AND visitor_key = %s",
-                            (article_id, vk),
+                            "DELETE FROM article_visitor_reaction WHERE article_id = %s AND visitor_id = %s",
+                            (article_id, visitor_id),
                         )
                     else:
                         cur.execute(
-                            """INSERT INTO article_visitor_reaction (article_id, visitor_key, kind, updated_at)
+                            """INSERT INTO article_visitor_reaction (article_id, visitor_id, kind, updated_at)
                                VALUES (%s, %s, %s, NOW())
-                               ON CONFLICT (article_id, visitor_key) DO UPDATE SET kind = EXCLUDED.kind, updated_at = NOW()""",
-                            (article_id, vk, kind),
+                               ON CONFLICT (article_id, visitor_id) DO UPDATE SET kind = EXCLUDED.kind, updated_at = NOW()""",
+                            (article_id, visitor_id, kind),
                         )
-    row = get_article_dict(article_id, True, user_id, vk if not user_id else None)
+    row = get_article_dict(article_id, True, user_id, visitor_id if not user_id else None)
     return {
         "ok": True,
         "likes": row["likes"] if row else 0,

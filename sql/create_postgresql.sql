@@ -12,6 +12,12 @@ CREATE TABLE "user" (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE visitor (
+    id UUID PRIMARY KEY,
+    nickname VARCHAR(100),
+    first_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 CREATE TABLE category (
     id UUID PRIMARY KEY,
     name VARCHAR(100) NOT NULL UNIQUE,
@@ -95,9 +101,12 @@ CREATE TABLE comment (
     article_id UUID NOT NULL,
     user_id UUID NOT NULL,
     guest_name VARCHAR(100),
+    visitor_id UUID REFERENCES visitor(id) ON DELETE SET NULL,
     FOREIGN KEY (article_id) REFERENCES article(id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES "user"(id) ON DELETE CASCADE
 );
+
+CREATE INDEX idx_comment_visitor_id ON comment(visitor_id);
 
 CREATE TABLE article_reaction (
     user_id UUID NOT NULL,
@@ -108,6 +117,19 @@ CREATE TABLE article_reaction (
     FOREIGN KEY (user_id) REFERENCES "user"(id) ON DELETE CASCADE,
     FOREIGN KEY (article_id) REFERENCES article(id) ON DELETE CASCADE
 );
+
+CREATE TABLE article_visitor_reaction (
+    article_id UUID NOT NULL,
+    visitor_id UUID NOT NULL,
+    kind reaction_kind NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (article_id, visitor_id),
+    FOREIGN KEY (article_id) REFERENCES article(id) ON DELETE CASCADE,
+    FOREIGN KEY (visitor_id) REFERENCES visitor(id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_article_visitor_reaction_article ON article_visitor_reaction(article_id);
+CREATE INDEX idx_article_visitor_reaction_visitor ON article_visitor_reaction(visitor_id);
 
 CREATE INDEX idx_profile_skill_profile_id ON profile_skill(profile_id);
 CREATE INDEX idx_profile_contact_profile_id ON profile_contact(profile_id);

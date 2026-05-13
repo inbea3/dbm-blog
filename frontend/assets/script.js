@@ -38,11 +38,11 @@ function apiRoot() {
 }
 
 const Auth = {
-    state: { admin: false, email: null, nickname: null, userId: null },
+    state: { admin: false, email: null, nickname: null, userId: null, visitor: null },
 
     async refresh() {
         if (window.location.protocol === 'file:') {
-            this.state = { admin: false, email: null, nickname: null, userId: null };
+            this.state = { admin: false, email: null, nickname: null, userId: null, visitor: null };
             return this.state;
         }
         try {
@@ -52,10 +52,11 @@ const Auth = {
                 admin: !!data?.admin,
                 email: data?.email ?? null,
                 nickname: data?.nickname ?? null,
-                userId: data?.user_id ?? null
+                userId: data?.user_id ?? null,
+                visitor: data?.visitor ?? null
             };
         } catch (e) {
-            this.state = { admin: false, email: null, nickname: null, userId: null };
+            this.state = { admin: false, email: null, nickname: null, userId: null, visitor: null };
         }
         return this.state;
     },
@@ -125,8 +126,7 @@ const UI = {
         document.body.appendChild(modal);
 
         modal.addEventListener('click', (e) => {
-            const t = e.target;
-            if (t && t.getAttribute && t.getAttribute('data-close') === '1') UI.closeLoginModal();
+            if (e.target?.closest?.('[data-close="1"]')) UI.closeLoginModal();
         });
         document.getElementById('login-submit').addEventListener('click', UI.handleLoginSubmit);
     },
@@ -171,11 +171,8 @@ const UI = {
         document.querySelectorAll('.guest-only').forEach((el) => {
             el.classList.toggle('hidden', loggedIn);
         });
-        if (Auth.state.admin) {
-            Author.applyThumbToDom();
-        } else {
-            document.querySelectorAll('.author-avatar-thumb').forEach((el) => el.classList.add('hidden'));
-        }
+        // 游客态也显示博主头像（公开 /api/author）；无头像时仍显示 guest 灰色图标
+        Author.applyThumbToDom();
 
         window.dispatchEvent(new CustomEvent('auth-changed', { detail: { ...Auth.state } }));
     },
@@ -376,6 +373,18 @@ const API = {
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
         return data;
+    },
+
+    async setVisitorNickname(nickname) {
+        const res = await fetch(`${this.baseUrl}/visitor/nickname`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ nickname })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
+        return data;
     }
 };
 
@@ -383,12 +392,11 @@ const Contact = {
     data: {
         gitee: '',
         email: '',
-        qq: '',
-        qqQr: ''
+        qq: ''
     },
 
     applyToDom() {
-        const { gitee, email, qq, qqQr } = this.data;
+        const { gitee, email, qq } = this.data;
 
         const gNav = document.getElementById('contact-gitee');
         if (gNav) gNav.href = gitee || '#';
@@ -405,14 +413,9 @@ const Contact = {
         const qqText = document.getElementById('qq-text');
         if (qqText) qqText.textContent = qq || '未配置';
 
-        const qr = document.getElementById('qq-qr');
-        if (qr) {
-            if (qqQr) {
-                qr.src = qqQr;
-            } else {
-                qr.removeAttribute('src');
-            }
-        }
+        // about.html「联系我」卡片中的 QQ 号（与邮箱卡片一致，来自 profile_contact）
+        const qqContactCard = document.getElementById('qq-contact');
+        if (qqContactCard) qqContactCard.textContent = qq || '未配置';
 
         // about.html 的联系信息区
         const emailContact = document.getElementById('email-contact');
@@ -428,9 +431,6 @@ const Contact = {
                 githubContact.textContent = '未配置';
             }
         }
-
-        const twitterContact = document.getElementById('twitter-contact');
-        if (twitterContact) twitterContact.textContent = qqQr ? '点击查看二维码' : '暂未配置二维码';
     },
 
     async init(seed = {}) {
@@ -438,8 +438,7 @@ const Contact = {
             this.data = {
                 gitee: seed.gitee ?? '',
                 email: seed.email ?? '',
-                qq: seed.qq ?? '',
-                qqQr: seed.qqQr ?? ''
+                qq: seed.qq ?? ''
             };
             this.applyToDom();
             return null;
@@ -477,12 +476,17 @@ const Author = {
 
         thumbs.forEach((el) => {
             if (!(el instanceof HTMLImageElement)) return;
+            const guestLink = el.closest('a.guest-only');
+            const guestIcon = guestLink?.querySelector('.guest-avatar-btn');
+
             if (this.data.avatar) {
                 el.src = this.data.avatar;
                 el.classList.remove('hidden');
+                if (guestIcon) guestIcon.classList.add('hidden');
             } else {
                 el.removeAttribute('src');
                 el.classList.add('hidden');
+                if (guestIcon) guestIcon.classList.remove('hidden');
             }
         });
     },
@@ -537,7 +541,6 @@ async function refreshAuthorFromApi() {
             Contact.data.gitee = social.gitee ?? '';
             Contact.data.email = social.email ?? '';
             Contact.data.qq = social.qq ?? '';
-            Contact.data.qqQr = social.qqQr ?? '';
             Contact.applyToDom();
             Author.data.name = author?.name ?? '';
             Author.data.bio = author?.bio ?? '';

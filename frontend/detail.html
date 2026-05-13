@@ -165,7 +165,8 @@
                     <button type="button" onclick="openQQModal()" class="hover:text-indigo-600 transition-colors" aria-label="QQ">
                         <i class="fab fa-qq text-lg"></i>
                     </button>
-                    <a href="about.html" class="ml-1 guest-only" data-auth-trigger="1" aria-label="登录">
+                    <a href="about.html" class="ml-1 guest-only" data-auth-trigger="1" aria-label="关于博主 / 登录">
+                        <img class="author-avatar-thumb hidden" alt="博主头像" />
                         <span class="guest-avatar-btn"><i class="fas fa-user"></i></span>
                     </a>
                     <a href="about.html" class="ml-1 admin-only hidden" aria-label="Avatar">
@@ -229,9 +230,8 @@
                         <span class="text-sm text-gray-500"><i class="fas fa-thumbs-down mr-1"></i><span id="stat-dislikes">0</span></span>
                         <span class="text-sm text-gray-500"><i class="fas fa-comments mr-1"></i><span id="stat-comments">0</span></span>
                         <div class="flex gap-2 ml-auto">
-                            <button type="button" id="btn-like" class="px-3 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 text-sm font-medium hover:opacity-90">赞</button>
-                            <button type="button" id="btn-dislike" class="px-3 py-1.5 rounded-lg bg-rose-50 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300 text-sm font-medium hover:opacity-90">踩</button>
-                            <button type="button" id="btn-none" class="px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 text-sm hover:bg-gray-50 dark:hover:bg-gray-700">取消</button>
+                            <button type="button" id="btn-like" class="px-3 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 text-sm font-medium hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none">赞</button>
+                            <button type="button" id="btn-dislike" class="px-3 py-1.5 rounded-lg bg-rose-50 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300 text-sm font-medium hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none">踩</button>
                         </div>
                     </div>
 
@@ -239,13 +239,12 @@
                         <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-4">评论</h3>
                         <ul id="comment-list" class="space-y-4 mb-6"></ul>
                         <div id="comment-form-guest" class="space-y-3">
-                            <p class="text-sm text-gray-500">游客请填写昵称后发表评论；管理员登录后无需昵称。</p>
-                            <input id="comment-guest-name" type="text" maxlength="80" class="w-full max-w-xs rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm" placeholder="您的昵称" />
+                            <p class="text-sm text-gray-500">游客：点赞/点踩或发表评论前会弹出昵称，昵称与互动记录在服务器「游客」表中。文章作者以管理员登录后同样可以发表评论，且会带有「博主」标记，便于在评论区与访客区分。</p>
                             <textarea id="comment-body" rows="3" class="w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm" placeholder="写下你的想法..."></textarea>
                             <button type="button" id="comment-submit" class="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700">发表评论</button>
                             <p id="comment-msg" class="text-sm text-red-600"></p>
                         </div>
-                        <p id="comment-form-admin-hint" class="hidden text-sm text-gray-500">您已以管理员身份登录，直接填写内容发表即可。</p>
+                        <p id="comment-form-admin-hint" class="hidden text-sm text-gray-500">您已以管理员身份登录，可直接发表评论；您的评论会显示「博主」标记，便于与访客互动。</p>
                     </section>
                     <div class="mt-8 flex justify-between">
                         <button id="prev-article" class="bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white px-6 py-2 rounded hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">
@@ -287,21 +286,41 @@
         </div>
     </div>
 
+    <!-- 游客昵称（点赞/踩/评论前） -->
+    <div id="guest-nickname-modal" class="hidden fixed inset-0 z-[1250]">
+        <div class="absolute inset-0 bg-black/50" data-guest-nick-close="1"></div>
+        <div class="relative max-w-md mx-auto mt-28 bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-xl">
+            <div class="flex items-center justify-between">
+                <h3 class="text-lg font-bold text-gray-900 dark:text-white">留下您的昵称</h3>
+                <button type="button" class="text-gray-500 hover:text-gray-700 dark:hover:text-gray-200" data-guest-nick-close="1" aria-label="Close">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <p class="mt-3 text-sm text-gray-600 dark:text-gray-300">将写入数据库中的游客资料，并与您的评论、赞/踩关联。</p>
+            <label class="mt-4 block text-sm font-semibold text-gray-700 dark:text-gray-200">昵称</label>
+            <input id="guest-nickname-input" type="text" maxlength="80" class="mt-2 w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-3 text-gray-900 dark:text-white" placeholder="请输入昵称" />
+            <p id="guest-nickname-error" class="text-sm text-red-600 mt-2"></p>
+            <div class="flex justify-end gap-3 mt-4">
+                <button type="button" class="px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700" data-guest-nick-close="1">取消</button>
+                <button type="button" id="guest-nickname-confirm" class="px-4 py-2 rounded-lg bg-indigo-600 text-white font-semibold hover:bg-indigo-700">确定</button>
+            </div>
+        </div>
+    </div>
+
     <!-- 联系方式弹窗：QQ -->
     <div id="qq-modal" class="hidden fixed inset-0 z-[1100]">
         <div class="absolute inset-0 bg-black/50" onclick="closeQQModal()"></div>
-        <div class="relative max-w-md mx-auto mt-28 bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-xl">
+        <div class="relative max-w-md mx-auto mt-32 bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-xl">
             <div class="flex items-center justify-between">
                 <h3 class="text-lg font-bold text-gray-900 dark:text-white">QQ</h3>
                 <button type="button" class="text-gray-500 hover:text-gray-700 dark:hover:text-gray-200" onclick="closeQQModal()" aria-label="Close">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
-            <p class="mt-4 text-gray-600 dark:text-gray-300"></p>
-            <div class="mt-4 flex justify-center">
-                <img id="qq-qr" src="" alt="QQ QR" class="w-56 h-56 rounded-xl border border-gray-200 dark:border-gray-700 bg-white" />
+            <p class="mt-4 text-gray-600 dark:text-gray-300">QQ：</p>
+            <div class="mt-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-4 py-3 font-mono text-sm text-gray-900 dark:text-white">
+                <span id="qq-text">加载中...</span>
             </div>
-            <p class="mt-3 text-center text-sm text-gray-500">QQ：<span id="qq-text">加载中...</span></p>
         </div>
     </div>
 
@@ -315,6 +334,61 @@
 
         let currentArticleId = null;
         let allArticles = [];
+        /** 当前用户对本文的表态：null | 'like' | 'dislike' */
+        let currentMyReaction = null;
+        let guestNicknameSuccessCb = null;
+
+        function getStoredGuestNickname() {
+            const n = Auth.state?.visitor?.nickname;
+            return n ? String(n).trim() : '';
+        }
+
+        function openGuestNicknameModal(onSuccess) {
+            guestNicknameSuccessCb = typeof onSuccess === 'function' ? onSuccess : null;
+            const modal = document.getElementById('guest-nickname-modal');
+            const input = document.getElementById('guest-nickname-input');
+            const err = document.getElementById('guest-nickname-error');
+            if (err) err.textContent = '';
+            if (input) input.value = getStoredGuestNickname() || '';
+            modal?.classList.remove('hidden');
+            setTimeout(() => input?.focus(), 0);
+        }
+
+        function dismissGuestNicknameModal() {
+            guestNicknameSuccessCb = null;
+            document.getElementById('guest-nickname-modal')?.classList.add('hidden');
+        }
+
+        async function confirmGuestNickname() {
+            const input = document.getElementById('guest-nickname-input');
+            const err = document.getElementById('guest-nickname-error');
+            const name = (input?.value || '').trim();
+            if (!name) {
+                if (err) err.textContent = '请填写昵称';
+                return;
+            }
+            if (err) err.textContent = '';
+            try {
+                await API.setVisitorNickname(name);
+                await Auth.refresh();
+            } catch (e) {
+                if (err) err.textContent = e?.message || '保存失败';
+                return;
+            }
+            const cb = guestNicknameSuccessCb;
+            guestNicknameSuccessCb = null;
+            document.getElementById('guest-nickname-modal')?.classList.add('hidden');
+            if (cb) cb();
+        }
+
+        /** 将接口返回的 ISO 时间转为本地可读时间（YYYY-MM-DD HH:mm） */
+        function formatCommentTime(iso) {
+            if (!iso) return '';
+            const d = new Date(iso);
+            if (Number.isNaN(d.getTime())) return String(iso);
+            const pad = (n) => String(n).padStart(2, '0');
+            return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+        }
 
         function renderComments(list) {
             const ul = document.getElementById('comment-list');
@@ -322,8 +396,11 @@
             (list || []).forEach((c) => {
                 const li = document.createElement('li');
                 li.className = 'border-b border-gray-100 dark:border-gray-700 pb-3';
+                const adminBadge = c.is_admin
+                    ? '<span class="ml-1.5 align-middle inline-flex items-center rounded-md bg-amber-100 dark:bg-amber-900/45 px-1.5 py-0.5 text-[10px] font-bold text-amber-900 dark:text-amber-100 ring-1 ring-inset ring-amber-300/80 dark:ring-amber-600/50" title="站长/管理员">博主</span>'
+                    : '';
                 li.innerHTML = `
-                    <div class="text-xs text-gray-400">${escapeHtml(c.created_at || '')} · ${escapeHtml(c.author || '')}</div>
+                    <div class="text-xs text-gray-400"><span class="align-middle">${escapeHtml(formatCommentTime(c.created_at))} · ${escapeHtml(c.author || '')}</span>${adminBadge}</div>
                     <div class="mt-1 text-gray-800 dark:text-gray-200 whitespace-pre-wrap">${escapeHtml(c.body || '')}</div>
                 `;
                 ul.appendChild(li);
@@ -358,31 +435,41 @@
             document.getElementById('stat-comments').textContent = article.comment_count ?? (article.comments || []).length;
             renderComments(article.comments);
             updateCommentFormVisibility();
-            highlightReactionButtons(article.my_reaction);
+            currentMyReaction = article.my_reaction || null;
+            updateReactionUi();
         }
 
         function updateCommentFormVisibility() {
             const logged = Auth.state.admin;
-            const nameEl = document.getElementById('comment-guest-name');
             const intro = document.querySelector('#comment-form-guest > p.text-sm');
             const hint = document.getElementById('comment-form-admin-hint');
             if (logged) {
-                nameEl.classList.add('hidden');
                 if (intro) intro.classList.add('hidden');
                 hint.classList.remove('hidden');
             } else {
-                nameEl.classList.remove('hidden');
                 if (intro) intro.classList.remove('hidden');
                 hint.classList.add('hidden');
             }
         }
 
-        function highlightReactionButtons(mine) {
-            ['btn-like', 'btn-dislike', 'btn-none'].forEach((id) => {
-                document.getElementById(id)?.classList.remove('ring-2', 'ring-indigo-500');
-            });
-            if (mine === 'like') document.getElementById('btn-like')?.classList.add('ring-2', 'ring-indigo-500');
-            if (mine === 'dislike') document.getElementById('btn-dislike')?.classList.add('ring-2', 'ring-indigo-500');
+        function updateReactionUi() {
+            const mine = currentMyReaction;
+            const likeBtn = document.getElementById('btn-like');
+            const dBtn = document.getElementById('btn-dislike');
+            if (!likeBtn || !dBtn) return;
+
+            likeBtn.classList.remove('ring-2', 'ring-emerald-600', 'font-bold');
+            dBtn.classList.remove('ring-2', 'ring-rose-600', 'font-bold');
+            likeBtn.disabled = false;
+            dBtn.disabled = false;
+
+            if (mine === 'like') {
+                likeBtn.classList.add('ring-2', 'ring-emerald-600', 'font-bold');
+                dBtn.disabled = true;
+            } else if (mine === 'dislike') {
+                dBtn.classList.add('ring-2', 'ring-rose-600', 'font-bold');
+                likeBtn.disabled = true;
+            }
         }
 
         async function reloadArticleFromApi() {
@@ -396,16 +483,16 @@
         async function submitComment() {
             const msg = document.getElementById('comment-msg');
             msg.textContent = '';
+            if (!Auth.state.admin && !getStoredGuestNickname()) {
+                openGuestNicknameModal(() => submitComment());
+                return;
+            }
             const body = document.getElementById('comment-body').value.trim();
             if (!body) {
                 msg.textContent = '请填写评论内容';
                 return;
             }
-            const guestName = document.getElementById('comment-guest-name').value.trim();
-            if (!Auth.state.admin && !guestName) {
-                msg.textContent = '请填写昵称';
-                return;
-            }
+            const guestName = Auth.state.admin ? '' : getStoredGuestNickname();
             try {
                 const data = await API.postComment(currentArticleId, body, guestName);
                 renderComments(data.comments);
@@ -421,10 +508,31 @@
                 const data = await API.postReaction(currentArticleId, kind);
                 document.getElementById('stat-likes').textContent = data.likes ?? 0;
                 document.getElementById('stat-dislikes').textContent = data.dislikes ?? 0;
-                highlightReactionButtons(data.my_reaction);
+                currentMyReaction = data.my_reaction || null;
+                updateReactionUi();
             } catch (e) {
                 console.error(e);
             }
+        }
+
+        async function handleLikeClick() {
+            if (!Auth.state.admin && !getStoredGuestNickname()) {
+                openGuestNicknameModal(() => handleLikeClick());
+                return;
+            }
+            if (currentMyReaction === 'dislike') return;
+            const next = currentMyReaction === 'like' ? 'none' : 'like';
+            await sendReaction(next);
+        }
+
+        async function handleDislikeClick() {
+            if (!Auth.state.admin && !getStoredGuestNickname()) {
+                openGuestNicknameModal(() => handleDislikeClick());
+                return;
+            }
+            if (currentMyReaction === 'like') return;
+            const next = currentMyReaction === 'dislike' ? 'none' : 'dislike';
+            await sendReaction(next);
         }
 
         // 获取文章 ID：支持 ?id= 与 /detail/<uuid 或数字>
@@ -459,7 +567,9 @@
             try {
                 currentArticleId = String(articleId);
 
-                const response = await fetch(`/api/articles/${encodeURIComponent(currentArticleId)}`);
+                const response = await fetch(`/api/articles/${encodeURIComponent(currentArticleId)}`, {
+                    credentials: 'include'
+                });
 
                 if (!response.ok) {
                     throw new Error('文章未找到');
@@ -558,10 +668,27 @@
             }
 
             await Auth.refresh();
-            document.getElementById('btn-like')?.addEventListener('click', () => sendReaction('like'));
-            document.getElementById('btn-dislike')?.addEventListener('click', () => sendReaction('dislike'));
-            document.getElementById('btn-none')?.addEventListener('click', () => sendReaction('none'));
-            document.getElementById('comment-submit')?.addEventListener('click', submitComment);
+            document.getElementById('btn-like')?.addEventListener('click', () => handleLikeClick());
+            document.getElementById('btn-dislike')?.addEventListener('click', () => handleDislikeClick());
+            document.getElementById('comment-submit')?.addEventListener('click', () => submitComment());
+
+            document.getElementById('guest-nickname-modal')?.addEventListener('click', (e) => {
+                if (e.target?.closest?.('[data-guest-nick-close="1"]')) dismissGuestNicknameModal();
+            });
+            document.getElementById('guest-nickname-confirm')?.addEventListener('click', confirmGuestNickname);
+
+            document.getElementById('comment-body')?.addEventListener(
+                'focusin',
+                () => {
+                    if (Auth.state.admin) return;
+                    if (getStoredGuestNickname()) return;
+                    const ta = document.getElementById('comment-body');
+                    if (!ta) return;
+                    ta.blur();
+                    openGuestNicknameModal(() => ta.focus());
+                },
+                true
+            );
             window.addEventListener('auth-changed', () => {
                 updateCommentFormVisibility();
                 reloadArticleFromApi();
