@@ -9,7 +9,7 @@
     <script>tailwind.config = { darkMode: 'class' };</script>
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="assets/style.css">
+    <link rel="stylesheet" href="/assets/style.css">
     <!-- 代码高亮 -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
@@ -324,7 +324,7 @@
         </div>
     </div>
 
-    <script src="assets/script.js"></script>
+    <script src="/assets/script.js"></script>
     <script>
 
         function openEmailModal() { document.getElementById('email-modal')?.classList.remove('hidden'); }
@@ -474,7 +474,7 @@
 
         async function reloadArticleFromApi() {
             if (!currentArticleId) return;
-            const res = await fetch(`${apiRoot()}/articles/${encodeURIComponent(currentArticleId)}`, { credentials: 'include' });
+            const res = await fetch(`/api/articles/${encodeURIComponent(currentArticleId)}`, { credentials: 'include' });
             if (!res.ok) return;
             const article = await res.json();
             applyArticleExtensions(article);
@@ -547,7 +547,7 @@
         // 加载文章列表
         async function loadAllArticles() {
             try {
-                const response = await fetch(`${apiRoot()}/articles`);
+                const response = await fetch("/api/articles");
                 if (!response.ok) throw new Error('list');
                 allArticles = await response.json();
             } catch (error) {
@@ -567,7 +567,7 @@
             try {
                 currentArticleId = String(articleId);
 
-                const response = await fetch(`${apiRoot()}/articles/${encodeURIComponent(currentArticleId)}`, {
+                const response = await fetch(`/api/articles/${encodeURIComponent(currentArticleId)}`, {
                     credentials: 'include'
                 });
 

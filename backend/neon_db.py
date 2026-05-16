@@ -32,9 +32,9 @@ class NeonDatabase:
         self,
         *,
         dsn: str | None = None,
-        min_size: int = 0,
-        max_size: int = 5,
-        connect_timeout: int = 30,
+        min_size: int = 1,
+        max_size: int = 8,
+        connect_timeout: int = 20,
     ) -> None:
         self._dsn_override = dsn
         self._min_size = min_size
@@ -88,7 +88,6 @@ class NeonDatabase:
                 self._effective_dsn(),
                 min_size=self._min_size,
                 max_size=self._max_size,
-                reconnect_timeout=60,
                 kwargs={"connect_timeout": self._connect_timeout},
             )
         return self._pool

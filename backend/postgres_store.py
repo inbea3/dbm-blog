@@ -14,23 +14,9 @@ import html as html_mod
 import markdown as mdlib
 from werkzeug.security import check_password_hash, generate_password_hash
 
-import time as _time
 from neon_db import get_neon_database
 
 GUEST_COMMENT_EMAIL = "comments-guest@system.blog"
-
-
-def _db_connection(retries: int = 3, delay: float = 2.0):
-    """返回一个数据库连接，Neon 唤醒期间自动重试。"""
-    last_exc: Exception | None = None
-    for attempt in range(retries):
-        try:
-            return get_neon_database().connection()
-        except Exception as e:
-            last_exc = e
-            if attempt < retries - 1:
-                _time.sleep(delay)
-    raise last_exc  # type: ignore
 _guest_comment_user_id: uuid.UUID | None = None
 _bootstrapped = False
 
@@ -271,7 +257,7 @@ def bootstrap_if_needed(admin_email: str, admin_password_plain: str) -> None:
         return
     from psycopg import errors as pg_errors
 
-    with _db_connection() as conn:
+    with get_neon_database().connection() as conn:
         with conn.transaction():
             with conn.cursor() as cur:
                 cur.execute("SELECT pg_advisory_xact_lock(%s)", (928374651,))
@@ -333,7 +319,7 @@ def ensure_session_visitor_id(session_obj: Any) -> uuid.UUID:
     if raw:
         return uuid.UUID(str(raw))
     vid = uuid.uuid4()
-    with _db_connection() as conn:
+    with get_neon_database().connection() as conn:
         with conn.transaction():
             with conn.cursor() as cur:
                 cur.execute(
@@ -347,7 +333,7 @@ def ensure_session_visitor_id(session_obj: Any) -> uuid.UUID:
 def get_visitor_public(visitor_id: uuid.UUID | None) -> dict[str, Any] | None:
     if not visitor_id:
         return None
-    with _db_connection() as conn:
+    with get_neon_database().connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 "SELECT id, nickname, first_seen_at FROM visitor WHERE id = %s",
@@ -368,7 +354,7 @@ def update_visitor_nickname(visitor_id: uuid.UUID, nickname: str) -> None:
     nn = _safe_text(nickname)[:80]
     if not nn:
         raise ValueError("请填写昵称")
-    with _db_connection() as conn:
+    with get_neon_database().connection() as conn:
         with conn.transaction():
             with conn.cursor() as cur:
                 cur.execute("UPDATE visitor SET nickname = %s WHERE id = %s", (nn, visitor_id))
@@ -377,7 +363,7 @@ def update_visitor_nickname(visitor_id: uuid.UUID, nickname: str) -> None:
 
 
 def get_admin_user_id() -> uuid.UUID | None:
-    with _db_connection() as conn:
+    with get_neon_database().connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """SELECT id FROM "user" WHERE role = 'admin' ORDER BY created_at ASC LIMIT 1"""
@@ -387,7 +373,7 @@ def get_admin_user_id() -> uuid.UUID | None:
 
 
 def authenticate_user(email: str, password: str) -> dict[str, Any] | None:
-    with _db_connection() as conn:
+    with get_neon_database().connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """SELECT u.id, u.email, u.password_hash, u.role::text,
@@ -418,7 +404,7 @@ def try_login(email: str, password: str) -> dict[str, Any] | None:
 
 
 def verify_admin_user_id(user_id: uuid.UUID) -> bool:
-    with _db_connection() as conn:
+    with get_neon_database().connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """SELECT 1 FROM "user" WHERE id = %s AND role = 'admin' LIMIT 1""",
@@ -437,7 +423,7 @@ def get_author_json() -> dict[str, Any]:
             "skills": [],
             "social": {},
         }
-    with _db_connection() as conn:
+    with get_neon_database().connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """SELECT u.email, up.nickname, up.signature, ma.public_url AS avatar_url
@@ -477,7 +463,7 @@ def update_author_avatar(admin_id: uuid.UUID, *, file_bytes: bytes, mime_type: s
     mid = uuid.uuid4()
     public_url = f"/api/media/{mid}"
     storage_key = f"inline:{mid}"
-    with _db_connection() as conn:
+    with get_neon_database().connection() as conn:
         with conn.transaction():
             with conn.cursor() as cur:
                 cur.execute(
@@ -498,7 +484,7 @@ def insert_article_image_blob(
     mid = uuid.uuid4()
     public_url = f"/api/media/{mid}"
     storage_key = f"inline:{mid}"
-    with _db_connection() as conn:
+    with get_neon_database().connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """INSERT INTO media_asset (id, storage_key, public_url, kind, article_id, mime_type, content)
@@ -512,7 +498,7 @@ def insert_article_image_external(
     public_url: str, storage_key: str, article_id: uuid.UUID | None
 ) -> uuid.UUID:
     mid = uuid.uuid4()
-    with _db_connection() as conn:
+    with get_neon_database().connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """INSERT INTO media_asset (id, storage_key, public_url, kind, article_id, mime_type, content)
@@ -523,7 +509,7 @@ def insert_article_image_external(
 
 
 def get_media_payload(media_id: uuid.UUID) -> dict[str, Any] | None:
-    with _db_connection() as conn:
+    with get_neon_database().connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 "SELECT content, mime_type, public_url FROM media_asset WHERE id = %s",
@@ -543,7 +529,7 @@ def get_media_payload(media_id: uuid.UUID) -> dict[str, Any] | None:
 
 
 def article_exists(article_id: uuid.UUID) -> bool:
-    with _db_connection() as conn:
+    with get_neon_database().connection() as conn:
         with conn.cursor() as cur:
             cur.execute("SELECT 1 FROM article WHERE id = %s LIMIT 1", (article_id,))
             return cur.fetchone() is not None
@@ -639,7 +625,7 @@ def _list_sql_frag(include_drafts: bool) -> str:
 
 def list_articles(include_drafts: bool) -> list[dict[str, Any]]:
     sql = _list_sql_frag(include_drafts)
-    with _db_connection() as conn:
+    with get_neon_database().connection() as conn:
         with conn.cursor() as cur:
             cur.execute(sql)
             return [_row_to_list_item(r) for r in cur.fetchall()]
@@ -651,7 +637,7 @@ def get_article_dict(
     viewer_user_id: uuid.UUID | None = None,
     visitor_id: uuid.UUID | None = None,
 ) -> dict[str, Any] | None:
-    with _db_connection() as conn:
+    with get_neon_database().connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """SELECT a.id, a.title, a.summary, a.body, a.content_format, a.style,
@@ -828,7 +814,7 @@ def get_guest_comment_user_id() -> uuid.UUID:
     global _guest_comment_user_id
     if _guest_comment_user_id is not None:
         return _guest_comment_user_id
-    with _db_connection() as conn:
+    with get_neon_database().connection() as conn:
         with conn.cursor() as cur:
             return _ensure_guest_comment_user(cur)
 
@@ -853,7 +839,7 @@ def create_article(payload: dict[str, Any], author_id: uuid.UUID) -> dict[str, A
 
     tag_ids = _parse_tag_id_list(payload)
     aid = uuid.uuid4()
-    with _db_connection() as conn:
+    with get_neon_database().connection() as conn:
         with conn.transaction():
             with conn.cursor() as cur:
                 cat = _resolve_category_id(cur, payload)
@@ -900,7 +886,7 @@ def update_article(aid: uuid.UUID, payload: dict[str, Any]) -> dict[str, Any] | 
 
     tag_ids = _parse_tag_id_list(payload) if ("tag_ids" in payload or "tags" in payload) else None
 
-    with _db_connection() as conn:
+    with get_neon_database().connection() as conn:
         with conn.transaction():
             with conn.cursor() as cur:
                 cat_sql = ""
@@ -928,14 +914,14 @@ def update_article(aid: uuid.UUID, payload: dict[str, Any]) -> dict[str, Any] | 
 
 
 def delete_article(aid: uuid.UUID) -> bool:
-    with _db_connection() as conn:
+    with get_neon_database().connection() as conn:
         with conn.cursor() as cur:
             cur.execute("DELETE FROM article WHERE id = %s", (aid,))
             return cur.rowcount > 0
 
 
 def user_email_by_id(uid: uuid.UUID) -> str | None:
-    with _db_connection() as conn:
+    with get_neon_database().connection() as conn:
         with conn.cursor() as cur:
             cur.execute("SELECT email FROM \"user\" WHERE id = %s", (uid,))
             row = cur.fetchone()
@@ -943,7 +929,7 @@ def user_email_by_id(uid: uuid.UUID) -> str | None:
 
 
 def user_nickname_by_id(uid: uuid.UUID) -> str:
-    with _db_connection() as conn:
+    with get_neon_database().connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """SELECT COALESCE(NULLIF(TRIM(up.nickname), ''), SPLIT_PART(u.email, '@', 1))
@@ -957,14 +943,14 @@ def user_nickname_by_id(uid: uuid.UUID) -> str:
 
 
 def list_categories() -> list[dict[str, Any]]:
-    with _db_connection() as conn:
+    with get_neon_database().connection() as conn:
         with conn.cursor() as cur:
             cur.execute("SELECT id, name, slug FROM category ORDER BY name ASC")
             return [{"id": str(r[0]), "name": r[1], "slug": r[2]} for r in cur.fetchall()]
 
 
 def list_tags() -> list[dict[str, Any]]:
-    with _db_connection() as conn:
+    with get_neon_database().connection() as conn:
         with conn.cursor() as cur:
             cur.execute("SELECT id, name, slug FROM tag ORDER BY name ASC")
             return [{"id": str(r[0]), "name": r[1], "slug": r[2]} for r in cur.fetchall()]
@@ -984,7 +970,7 @@ def add_article_comment(
     gid = get_guest_comment_user_id()
     cid = uuid.uuid4()
     gn = _safe_text(guest_name)[:80] if guest_name else None
-    with _db_connection() as conn:
+    with get_neon_database().connection() as conn:
         with conn.transaction():
             with conn.cursor() as cur:
                 cur.execute("SELECT 1 FROM article WHERE id = %s", (article_id,))
@@ -1019,7 +1005,7 @@ def set_article_reaction(
 ) -> dict[str, Any]:
     if kind not in ("like", "dislike", "none"):
         raise ValueError("bad kind")
-    with _db_connection() as conn:
+    with get_neon_database().connection() as conn:
         with conn.transaction():
             with conn.cursor() as cur:
                 cur.execute("SELECT 1 FROM article WHERE id = %s", (article_id,))

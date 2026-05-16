@@ -9,7 +9,7 @@
     <script>tailwind.config = { darkMode: 'class' };</script>
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="assets/style.css">
+    <link rel="stylesheet" href="/assets/style.css">
     <style>
         body {
             background:
@@ -308,7 +308,7 @@
         </div>
     </div>
 
-    <script src="assets/script.js"></script>
+    <script src="/assets/script.js"></script>
     <script>
         function openEmailModal() {
             document.getElementById('email-modal')?.classList.remove('hidden');
@@ -329,7 +329,7 @@
         // 加载最新文章
         async function loadLatestArticles() {
             try {
-                const response = await fetch(`${apiRoot()}/articles`);
+                const response = await fetch("/api/articles");
                 if (!response.ok) throw new Error('articles');
                 const articles = await response.json();
 
