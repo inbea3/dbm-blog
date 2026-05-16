@@ -1,5 +1,5 @@
-// 部署到 GitHub Pages 时，将此值设为后端服务器地址（例如 'https://your-backend.onrender.com'），留空则使用同源
-const DBM_API_BACKEND = '';
+// 后端 Render 地址，部署后替换为实际 URL，例如 'https://dbm-blog-backend.onrender.com'
+const DBM_API_BACKEND = 'https://dbm-blog-backend.onrender.com';
 
 const DarkMode = {
     toggle() {

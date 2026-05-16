@@ -26,7 +26,15 @@ app = Flask(__name__)
 app.secret_key = os.environ.get('BLOG_SECRET_KEY') or secrets.token_hex(32)
 SERVER_NONCE = secrets.token_hex(16)
 
-CORS(app, supports_credentials=True)
+_ALLOWED_ORIGINS = [o.rstrip('/') for o in os.environ.get(
+    'BLOG_ALLOWED_ORIGINS',
+    'https://inbea3.github.io,http://localhost:5000,http://127.0.0.1:5000'
+).split(',') if o.strip()]
+CORS(app, supports_credentials=True, origins=_ALLOWED_ORIGINS)
+
+app.config['SESSION_COOKIE_SAMESITE'] = 'None'
+app.config['SESSION_COOKIE_SECURE'] = True
+app.config['SESSION_COOKIE_HTTPONLY'] = True
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 FRONTEND_DIR = os.path.abspath(os.path.join(BASE_DIR, '..', 'frontend'))
