@@ -329,7 +329,7 @@
         // 加载最新文章
         async function loadLatestArticles() {
             try {
-                const response = await fetch('/api/articles');
+                const response = await fetch(`${apiRoot()}/articles`);
                 if (!response.ok) throw new Error('articles');
                 const articles = await response.json();
 

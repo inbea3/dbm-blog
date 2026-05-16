@@ -234,7 +234,7 @@
         // 加载文章列表
         async function loadArticles() {
             try {
-                const response = await fetch('/api/articles');
+                const response = await fetch(`${apiRoot()}/articles`);
                 if (!response.ok) throw new Error('HTTP ' + response.status);
                 const articles = await response.json();
 

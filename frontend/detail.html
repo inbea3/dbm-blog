@@ -474,7 +474,7 @@
 
         async function reloadArticleFromApi() {
             if (!currentArticleId) return;
-            const res = await fetch(`/api/articles/${encodeURIComponent(currentArticleId)}`, { credentials: 'include' });
+            const res = await fetch(`${apiRoot()}/articles/${encodeURIComponent(currentArticleId)}`, { credentials: 'include' });
             if (!res.ok) return;
             const article = await res.json();
             applyArticleExtensions(article);
@@ -547,7 +547,7 @@
         // 加载文章列表
         async function loadAllArticles() {
             try {
-                const response = await fetch('/api/articles');
+                const response = await fetch(`${apiRoot()}/articles`);
                 if (!response.ok) throw new Error('list');
                 allArticles = await response.json();
             } catch (error) {
@@ -567,7 +567,7 @@
             try {
                 currentArticleId = String(articleId);
 
-                const response = await fetch(`/api/articles/${encodeURIComponent(currentArticleId)}`, {
+                const response = await fetch(`${apiRoot()}/articles/${encodeURIComponent(currentArticleId)}`, {
                     credentials: 'include'
                 });
 
