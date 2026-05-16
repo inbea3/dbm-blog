@@ -7,18 +7,18 @@
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>tailwind.config = { darkMode: 'class' };</script>
+    <!-- 立即应用深色模式，防止刷新时闪白 -->
+    <script>if (localStorage.getItem('darkMode') === 'true') document.documentElement.classList.add('dark');</script>
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="/assets/style.css">
     <style>
-        /* 深色模式样式 */
-        @media (prefers-color-scheme: dark) {
-            :root {
-                --bg-primary: #1a1a1a;
-                --bg-secondary: #2d2d2d;
-                --text-primary: #ffffff;
-                --text-secondary: #a0a0a0;
-            }
+        /* 深色模式样式（由 html.dark 类控制，与切换按钮联动） */
+        html.dark {
+            --bg-primary: #1a1a1a;
+            --bg-secondary: #2d2d2d;
+            --text-primary: #ffffff;
+            --text-secondary: #a0a0a0;
         }
 
         body {
@@ -57,11 +57,7 @@
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         }
 
-        .brand-mark {
-            font-family: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
-            letter-spacing: 0.06em;
-            font-weight: 800;
-        }
+        /* brand-mark font 由 style.css 统一管理 */
 
         .brand-mark-text {
             background: linear-gradient(135deg, #4f46e5 0%, #a855f7 100%);

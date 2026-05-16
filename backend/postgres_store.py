@@ -1046,3 +1046,28 @@ def set_article_reaction(
         "dislikes": row["dislikes"] if row else 0,
         "my_reaction": row.get("my_reaction") if row else None,
     }
+
+
+def get_blog_stats() -> dict[str, int]:
+    """返回博客概览统计：文章数、互动总次数、累计访问人数。"""
+    with get_neon_database().connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM article WHERE status = 'published'")
+            article_count: int = cur.fetchone()[0]  # type: ignore[index]
+
+            cur.execute("""
+                SELECT
+                    (SELECT COUNT(*) FROM article_reaction        WHERE kind <> 'none') +
+                    (SELECT COUNT(*) FROM article_visitor_reaction WHERE kind <> 'none') +
+                    (SELECT COUNT(*) FROM comment)
+            """)
+            interactions: int = cur.fetchone()[0]  # type: ignore[index]
+
+            cur.execute("SELECT COUNT(*) FROM visitor")
+            visitors: int = cur.fetchone()[0]  # type: ignore[index]
+
+    return {
+        "articles": int(article_count),
+        "interactions": int(interactions),
+        "visitors": int(visitors),
+    }

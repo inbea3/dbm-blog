@@ -7,6 +7,8 @@
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>tailwind.config = { darkMode: 'class' };</script>
+    <!-- 立即应用深色模式，防止刷新时闪白 -->
+    <script>if (localStorage.getItem('darkMode') === 'true') document.documentElement.classList.add('dark');</script>
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="/assets/style.css">
@@ -14,14 +16,12 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
     <style>
-        /* 深色模式样式 */
-        @media (prefers-color-scheme: dark) {
-            :root {
-                --bg-primary: #1a1a1a;
-                --bg-secondary: #2d2d2d;
-                --text-primary: #ffffff;
-                --text-secondary: #a0a0a0;
-            }
+        /* 深色模式样式（由 html.dark 类控制，与切换按钮联动） */
+        html.dark {
+            --bg-primary: #1a1a1a;
+            --bg-secondary: #2d2d2d;
+            --text-primary: #ffffff;
+            --text-secondary: #a0a0a0;
         }
 
         body {
@@ -60,11 +60,7 @@
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         }
 
-        .brand-mark {
-            font-family: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
-            letter-spacing: 0.06em;
-            font-weight: 800;
-        }
+        /* brand-mark font 由 style.css 统一管理 */
 
         .brand-mark-text {
             background: linear-gradient(135deg, #4f46e5 0%, #a855f7 100%);
@@ -133,6 +129,88 @@
         .dark .article-content h3 {
             color: #818cf8;
         }
+
+        /* ── 阅读进度条 ── */
+        #read-progress {
+            position: fixed;
+            top: 0; left: 0;
+            height: 3px;
+            width: 0%;
+            z-index: 9999;
+            background: linear-gradient(90deg, #4f46e5, #a855f7);
+            transition: width 80ms linear;
+            border-radius: 0 2px 2px 0;
+        }
+
+        /* ── TOC 侧边栏 ── */
+        #toc-panel {
+            width: 220px;
+            flex-shrink: 0;
+        }
+        #toc-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        #toc-list li a {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            padding: 5px 8px;
+            border-radius: 6px;
+            font-size: 0.78rem;
+            line-height: 1.4;
+            color: #64748b;
+            text-decoration: none;
+            transition: background 0.15s, color 0.15s;
+        }
+        .dark #toc-list li a { color: #94a3b8; }
+        #toc-list li a:hover { background: rgba(99,102,241,0.08); color: #4f46e5; }
+        #toc-list li a.toc-active { background: rgba(99,102,241,0.12); color: #4f46e5; font-weight: 600; }
+        .dark #toc-list li a.toc-active { background: rgba(99,102,241,0.2); color: #818cf8; }
+        #toc-list li.toc-h3 a { padding-left: 20px; font-size: 0.74rem; }
+        .toc-time {
+            display: inline-block;
+            margin-left: auto;
+            flex-shrink: 0;
+            font-size: 0.68rem;
+            color: #a855f7;
+            background: rgba(168,85,247,0.10);
+            border-radius: 99px;
+            padding: 1px 6px;
+            white-space: nowrap;
+        }
+        .dark .toc-time { background: rgba(168,85,247,0.18); }
+
+        /* ── 正文时间刻度线 ── */
+        .read-mile {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 1.8rem 0;
+            color: #a855f7;
+            font-size: 0.78rem;
+            font-weight: 600;
+            letter-spacing: 0.04em;
+        }
+        .read-mile::before, .read-mile::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(168,85,247,0.4), transparent);
+        }
+        .dark .read-mile { color: #c084fc; }
+
+        /* 文章 + TOC 容器 */
+        #article-toc-wrapper {
+            display: flex;
+            align-items: flex-start;
+            gap: 2rem;
+        }
+        #article-toc-wrapper > article {
+            flex: 1;
+            min-width: 0;
+        }
     </style>
 </head>
 <body>
@@ -185,6 +263,9 @@
         </div>
     </nav>
 
+    <!-- 阅读进度条 -->
+    <div id="read-progress"></div>
+
     <!-- 主要内容 -->
     <main class="pt-20 min-h-screen">
         <!-- 面包屑导航 -->
@@ -198,8 +279,10 @@
             </nav>
         </div>
 
+        <!-- 文章 + TOC 容器 -->
+        <div class="container mx-auto px-6 py-8" id="article-toc-wrapper">
         <!-- 文章内容 -->
-        <article class="container mx-auto px-6 py-8">
+        <article>
             <div class="max-w-4xl mx-auto">
                 <div id="loading" class="text-center py-12">
                     <i class="fas fa-spinner fa-spin text-4xl text-indigo-600"></i>
@@ -214,9 +297,12 @@
                 </div>
                 <div id="article-container" class="hidden">
                     <h1 id="article-title" class="text-4xl font-bold mb-4 text-indigo-600"></h1>
-                    <div class="flex items-center gap-4 text-sm text-gray-500 mb-4">
+                    <div class="flex items-center flex-wrap gap-4 text-sm text-gray-500 mb-4">
                         <span><i class="fas fa-calendar-alt mr-2"></i><span id="article-date"></span></span>
                         <span><i class="fas fa-user mr-2"></i><span id="article-author"></span></span>
+                        <span id="read-time-badge" class="hidden items-center gap-1 px-2.5 py-1 rounded-full bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-xs font-semibold">
+                            <i class="fas fa-clock"></i><span id="read-time-text"></span>
+                        </span>
                         <a id="link-edit-article" href="editor.html" data-require-admin="1" data-admin-hint="编辑文章需要先登录管理员账号。" class="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 dark:border-indigo-500/40 bg-indigo-50 dark:bg-indigo-900/30 px-3 py-1.5 text-sm font-medium text-indigo-700 dark:text-indigo-300 hover:opacity-90">
                             <i class="fas fa-pen"></i> 编辑本文
                         </a>
@@ -260,6 +346,18 @@
                 </div>
             </div>
         </article>
+
+        <!-- TOC 侧边栏（大屏显示） -->
+        <aside id="toc-panel" class="hidden xl:block">
+            <div class="sticky top-28">
+                <div class="text-xs font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-3 px-2">
+                    <i class="fas fa-clock mr-1.5 text-purple-400"></i>目录 &amp; 时长
+                </div>
+                <ul id="toc-list"></ul>
+                <div class="mt-4 px-2 text-xs text-slate-400 dark:text-slate-500" id="toc-total-time"></div>
+            </div>
+        </aside>
+        </div><!-- /#article-toc-wrapper -->
     </main>
 
     <!-- 页脚 -->
@@ -597,6 +695,9 @@
                 applyArticleExtensions(article);
                 setupNavigation();
 
+                // 构建 TOC + 里程碑标记（渲染后执行，让 hljs 先完成）
+                requestAnimationFrame(() => buildTocAndMilestones());
+
             } catch (error) {
                 console.error('获取文章详情失败:', error);
                 document.getElementById('loading').classList.add('hidden');
@@ -635,6 +736,111 @@
                 nextButton.onclick = null;
                 nextButton.classList.add('opacity-50', 'cursor-not-allowed');
             }
+        }
+
+        // ══════════════════════════════════════════
+        //  阅读进度条
+        // ══════════════════════════════════════════
+        window.addEventListener('scroll', () => {
+            const doc = document.documentElement;
+            const scrolled = doc.scrollTop || document.body.scrollTop;
+            const total = doc.scrollHeight - doc.clientHeight;
+            const pct = total > 0 ? Math.min(scrolled / total * 100, 100) : 0;
+            document.getElementById('read-progress').style.width = pct + '%';
+        }, { passive: true });
+
+        // ══════════════════════════════════════════
+        //  TOC + 时间刻度
+        // ══════════════════════════════════════════
+        const CHARS_PER_MIN = 400; // 中文阅读速度估算
+
+        function buildTocAndMilestones() {
+            const contentEl = document.getElementById('article-content');
+            if (!contentEl) return;
+
+            // ── 1. 统计全文字数 & 显示预估阅读时长 ──
+            const fullText = contentEl.innerText || '';
+            const totalChars = fullText.replace(/\s/g, '').length;
+            const totalMin = Math.max(1, Math.round(totalChars / CHARS_PER_MIN));
+            const badge = document.getElementById('read-time-badge');
+            document.getElementById('read-time-text').textContent = `预计 ${totalMin} 分钟`;
+            badge.classList.remove('hidden');
+            badge.classList.add('inline-flex');
+            document.getElementById('toc-total-time').textContent = `全文约 ${totalMin} 分钟`;
+
+            // ── 2. 找所有 h2/h3 ──
+            const headings = Array.from(contentEl.querySelectorAll('h2, h3'));
+            if (headings.length < 2) return; // 章节太少不显示 TOC
+
+            // ── 3. 给每个 heading 加锚点 id ──
+            headings.forEach((h, i) => {
+                if (!h.id) h.id = `toc-sec-${i}`;
+            });
+
+            // ── 4. 计算每节字数 → 时长 ──
+            const sectionTimes = headings.map((h, i) => {
+                const nextH = headings[i + 1];
+                let sectionText = '';
+                let node = h.nextSibling;
+                while (node && node !== nextH) {
+                    sectionText += node.innerText || node.textContent || '';
+                    node = node.nextSibling;
+                }
+                const chars = sectionText.replace(/\s/g, '').length;
+                return Math.max(1, Math.round(chars / CHARS_PER_MIN));
+            });
+
+            // ── 5. 渲染 TOC ──
+            const tocList = document.getElementById('toc-list');
+            tocList.innerHTML = '';
+            headings.forEach((h, i) => {
+                const li = document.createElement('li');
+                li.className = h.tagName === 'H3' ? 'toc-h3' : 'toc-h2';
+                li.dataset.tocId = h.id;
+                const a = document.createElement('a');
+                a.href = `#${h.id}`;
+                a.innerHTML = `<span class="truncate max-w-[120px]" title="${h.textContent}">${h.textContent}</span>
+                               <span class="toc-time">${sectionTimes[i]}min</span>`;
+                a.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    h.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                });
+                li.appendChild(a);
+                tocList.appendChild(li);
+            });
+
+            // ── 6. 在正文中插入时间里程碑（每 2 分钟一个）──
+            let cumulativeMin = 0;
+            const inserted = new Set();
+            headings.forEach((h, i) => {
+                const prevMile = Math.floor(cumulativeMin / 2) * 2;
+                cumulativeMin += sectionTimes[i];
+                const nextMile = Math.floor(cumulativeMin / 2) * 2;
+                for (let m = prevMile + 2; m <= nextMile; m += 2) {
+                    if (!inserted.has(m) && m > 0 && m < totalMin) {
+                        const marker = document.createElement('div');
+                        marker.className = 'read-mile';
+                        marker.textContent = `⏱ ${m} 分钟`;
+                        h.parentNode.insertBefore(marker, h);
+                        inserted.add(m);
+                    }
+                }
+            });
+
+            // ── 7. IntersectionObserver 高亮当前章节 ──
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach((entry) => {
+                    const id = entry.target.id;
+                    const liEl = tocList.querySelector(`[data-toc-id="${id}"] a`);
+                    if (!liEl) return;
+                    if (entry.isIntersecting) {
+                        tocList.querySelectorAll('a').forEach(a => a.classList.remove('toc-active'));
+                        liEl.classList.add('toc-active');
+                    }
+                });
+            }, { rootMargin: '-10% 0px -80% 0px' });
+
+            headings.forEach(h => observer.observe(h));
         }
 
         // 切换深色模式

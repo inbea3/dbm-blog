@@ -257,6 +257,11 @@ def delete_article(article_id):
     return jsonify({'ok': True, 'deleted': True, 'id': str(aid)})
 
 
+@app.route('/api/stats', methods=['GET'])
+def get_stats():
+    return jsonify(postgres_store.get_blog_stats())
+
+
 @app.route('/api/categories', methods=['GET'])
 def api_categories():
     return jsonify(postgres_store.list_categories())

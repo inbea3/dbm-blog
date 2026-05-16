@@ -1,9 +1,47 @@
 /**
  * 共享样式表
- * 用于博客网站的通用样式
  */
 
-/* 深色模式变量 */
+/* ── Google Fonts 引入（含国内 CDN fallback） ─────────────────────────
+   字体分配：
+   · Noto Sans SC     → 全局 UI / 导航 / 标签 / 正文短文本
+   · Noto Serif SC    → 文章阅读正文（长文沉浸感）
+   · ZCOOL XiaoWei    → 大标题 / 品牌 Logo（有设计感的展示字体）
+   · JetBrains Mono   → 代码块（连字等宽，程序员友好）
+   ─────────────────────────────────────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;600;700&family=Noto+Serif+SC:wght@400;500;600;700&family=ZCOOL+XiaoWei&family=JetBrains+Mono:ital,wght@0,400;0,500;1,400&display=swap');
+
+/* ── CSS 变量：字体族 ──────────────────────────────────────────────── */
+:root {
+    /* UI / 正文（无衬线） */
+    --font-sans:
+        "Noto Sans SC",
+        "PingFang SC", "Hiragino Sans GB",
+        "Microsoft YaHei", "微软雅黑",
+        system-ui, -apple-system, sans-serif;
+
+    /* 文章阅读正文（衬线） */
+    --font-serif:
+        "Noto Serif SC",
+        "Songti SC", "SimSun", "宋体",
+        "Source Han Serif SC", Georgia, serif;
+
+    /* 展示/标题 */
+    --font-display:
+        "ZCOOL XiaoWei",
+        "华文行楷", "STXingkai",
+        "Noto Serif SC", Georgia, serif;
+
+    /* 代码 */
+    --font-mono:
+        "JetBrains Mono",
+        "Cascadia Code", "Fira Code",
+        "SF Mono", ui-monospace,
+        SFMono-Regular, Menlo, Consolas,
+        "Courier New", monospace;
+}
+
+/* ── 深色模式变量 ─────────────────────────────────────────────────── */
 @media (prefers-color-scheme: dark) {
     :root {
         --bg-primary: #1a1a1a;
@@ -13,35 +51,62 @@
     }
 }
 
-/*
-  中英字体分流：
-  - 中文：优先华文行楷（存在则用）
-  - 英文/数字：优先 Segoe UI Variable/Segoe UI（更现代、可读性更好）
-  注：My Blog 的 logo 已有单独字体设置，不受影响。
-*/
-@font-face {
-    font-family: "SiteMixed";
-    src: local("Segoe UI Variable"), local("Segoe UI");
-    unicode-range: U+0000-00FF, U+0100-024F, U+1E00-1EFF, U+2000-206F, U+20A0-20CF, U+2100-214F;
-}
-
-@font-face {
-    font-family: "SiteMixed";
-    src: local("华文行楷"), local("STXingkai"), local("STXingKai"), local("KaiTi"), local("楷体");
-    unicode-range: U+2E80-2EFF, U+2F00-2FDF, U+3000-303F, U+3400-4DBF, U+4E00-9FFF, U+F900-FAFF, U+FF00-FFEF;
-}
-
-/* 全局样式 */
+/* ── 全局字体应用 ─────────────────────────────────────────────────── */
 body {
     background-color: var(--bg-primary, #f9fafb);
     color: var(--text-primary, #000000);
     transition: background-color 0.3s, color 0.3s;
-    font-family: "SiteMixed", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+    font-family: var(--font-sans);
+    font-size: 15px;
+    line-height: 1.7;
+    /* 提升字体渲染质量 */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
 }
 
-/* 代码块保持等宽字体，避免行楷影响可读性 */
+/* ── 代码块 ──────────────────────────────────────────────────────── */
 pre, code, kbd, samp {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-family: var(--font-mono);
+    font-size: 0.88em;
+    font-variant-ligatures: contextual; /* JetBrains Mono 连字 */
+}
+
+/* ── 展示字体：大标题 & Logo ─────────────────────────────────────── */
+/* Hero h1、页面大标题使用展示字体 */
+h1,
+.display-font {
+    font-family: var(--font-display);
+    font-weight: 400; /* ZCOOL XiaoWei 只有一个字重，不要加 bold */
+    letter-spacing: 0.02em;
+}
+
+/* 导航 Logo 沿用展示字体 */
+.brand-mark {
+    font-family: var(--font-display) !important;
+    font-weight: 400 !important;
+    letter-spacing: 0.08em;
+}
+
+/* ── 无衬线标题（h2/h3 in UI）──────────────────────────────────── */
+h2, h3, h4, h5, h6 {
+    font-family: var(--font-sans);
+    font-weight: 700;
+    line-height: 1.35;
+    letter-spacing: -0.01em;
+}
+
+/* 文章详情页标题：衬线字体，与正文阅读体验一致 */
+#article-title {
+    font-family: var(--font-serif);
+    font-weight: 700;
+    letter-spacing: -0.01em;
+}
+
+/* 导航链接 / UI 小字 保持无衬线，阅读清晰 */
+.nav-link, label, button, input, textarea, select {
+    font-family: var(--font-sans);
 }
 
 /* 深色模式切换按钮 */
@@ -181,63 +246,123 @@ html {
     }
 }
 
-/* 文章内容样式 */
+/* ── 文章阅读区 (.article-content) ─────────────────────────────── */
 .article-content {
-    font-size: 1.1rem;
-    line-height: 1.8;
+    /* 正文用衬线字体，沉浸阅读感更强 */
+    font-family: var(--font-serif);
+    font-size: 1.05rem;
+    line-height: 1.9;
+    color: #1e293b;
+    word-break: break-word;
+    overflow-wrap: break-word;
 }
 
+.dark .article-content {
+    color: #cbd5e1;
+}
+
+/* 文章内 h2/h3 回到无衬线，层次对比更清晰 */
 .article-content h2 {
-    font-size: 2rem;
-    margin-top: 2rem;
-    margin-bottom: 1rem;
+    font-family: var(--font-sans);
+    font-size: 1.65rem;
+    font-weight: 700;
+    margin-top: 2.2rem;
+    margin-bottom: 0.9rem;
     color: #4f46e5;
+    letter-spacing: -0.01em;
+    padding-bottom: 0.4rem;
+    border-bottom: 1px solid rgba(99,102,241,0.2);
 }
 
 .article-content h3 {
-    font-size: 1.5rem;
-    margin-top: 1.5rem;
-    margin-bottom: 0.75rem;
+    font-family: var(--font-sans);
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin-top: 1.8rem;
+    margin-bottom: 0.6rem;
     color: #6366f1;
+    letter-spacing: -0.01em;
+}
+
+.article-content h4 {
+    font-family: var(--font-sans);
+    font-size: 1.05rem;
+    font-weight: 600;
+    margin-top: 1.4rem;
+    margin-bottom: 0.5rem;
+    color: #7c3aed;
 }
 
 .article-content p {
-    margin-bottom: 1rem;
+    margin-bottom: 1.1rem;
 }
 
-.article-content ul, .article-content ol {
-    margin-left: 1.5rem;
+.article-content ul,
+.article-content ol {
+    margin-left: 1.6rem;
     margin-bottom: 1rem;
 }
 
 .article-content li {
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.45rem;
+}
+
+/* 引用块 */
+.article-content blockquote {
+    border-left: 3px solid #a855f7;
+    margin: 1.5rem 0;
+    padding: 0.6rem 1.2rem;
+    background: rgba(168,85,247,0.06);
+    border-radius: 0 8px 8px 0;
+    color: #475569;
+    font-style: italic;
+}
+.dark .article-content blockquote {
+    background: rgba(168,85,247,0.1);
+    color: #94a3b8;
+}
+
+/* 分割线 */
+.article-content hr {
+    border: none;
+    border-top: 1px solid rgba(148,163,184,0.25);
+    margin: 2rem 0;
 }
 
 .article-content pre {
+    font-family: var(--font-mono);
     background: #1e293b;
     color: #e2e8f0;
-    padding: 1.5rem;
-    border-radius: 0.5rem;
+    padding: 1.4rem 1.6rem;
+    border-radius: 10px;
     overflow-x: auto;
-    margin: 1rem 0;
+    margin: 1.2rem 0;
+    font-size: 0.875rem;
+    line-height: 1.65;
 }
 
 .article-content code {
-    background: #1e293b;
-    color: #e2e8f0;
-    padding: 0.2rem 0.4rem;
-    border-radius: 0.25rem;
-    font-size: 0.9em;
+    font-family: var(--font-mono);
+    background: rgba(99,102,241,0.1);
+    color: #4f46e5;
+    padding: 0.15rem 0.45rem;
+    border-radius: 4px;
+    font-size: 0.875em;
+}
+.dark .article-content code {
+    background: rgba(99,102,241,0.2);
+    color: #a5b4fc;
 }
 
 .article-content pre code {
     background: transparent;
+    color: inherit;
     padding: 0;
+    border-radius: 0;
+    font-size: inherit;
 }
 
-/* 深色模式下文章内容调整 */
-.dark .article-content h2,
-.dark .article-content h3 {
-    color: #818cf8;
-}
+/* 深色模式标题 */
+.dark .article-content h2 { color: #818cf8; border-color: rgba(129,140,248,0.2); }
+.dark .article-content h3 { color: #a5b4fc; }
+.dark .article-content h4 { color: #c4b5fd; }

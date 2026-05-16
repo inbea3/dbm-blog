@@ -4,331 +4,640 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>博客列表 - 我的个人博客</title>
-    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>tailwind.config = { darkMode: 'class' };</script>
-    <!-- Font Awesome -->
+    <script>if (localStorage.getItem('darkMode') === 'true') document.documentElement.classList.add('dark');</script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="/assets/style.css">
     <style>
-        /* 深色模式样式 */
-        @media (prefers-color-scheme: dark) {
-            :root {
-                --bg-primary: #1a1a1a;
-                --bg-secondary: #2d2d2d;
-                --text-primary: #ffffff;
-                --text-secondary: #a0a0a0;
-            }
+        html.dark {
+            --bg-primary: #0f172a;
+            --bg-secondary: #1e293b;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
         }
-
         body {
-            background-color: var(--bg-primary, #f9fafb);
-            color: var(--text-primary, #000000);
+            background-color: var(--bg-primary, #f8fafc);
+            color: var(--text-primary, #0f172a);
             transition: background-color 0.3s, color 0.3s;
         }
 
-        /* 深色模式切换按钮 */
+        /* ── 暗色模式切换按钮 ── */
         .dark-mode-toggle {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            z-index: 1000;
-            background: var(--bg-secondary, #f3f4f6);
-            border: none;
-            border-radius: 50%;
-            width: 50px;
-            height: 50px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            transition: all 0.3s ease;
+            position: fixed; top: 20px; right: 20px; z-index: 1000;
+            background: var(--bg-secondary, #f1f5f9);
+            border: none; border-radius: 50%; width: 46px; height: 46px;
+            cursor: pointer; display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.12); transition: all 0.25s ease;
         }
+        .dark-mode-toggle:hover { transform: scale(1.1); }
 
-        .dark-mode-toggle:hover {
-            transform: scale(1.1);
-        }
-
-        /* 导航栏样式 */
+        /* ── 导航栏 ── */
         .navbar {
-            background: var(--bg-secondary, #ffffff);
-            backdrop-filter: blur(10px);
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            background: rgba(255,255,255,0.85);
+            backdrop-filter: blur(12px);
+            box-shadow: 0 1px 0 rgba(148,163,184,0.25);
         }
-
-        .brand-mark {
-            font-family: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
-            letter-spacing: 0.06em;
-            font-weight: 800;
+        html.dark .navbar {
+            background: rgba(15,23,42,0.85);
+            box-shadow: 0 1px 0 rgba(148,163,184,0.10);
         }
-
+        /* brand-mark font 由 style.css 统一管理 */
         .brand-mark-text {
-            background: linear-gradient(135deg, #4f46e5 0%, #a855f7 100%);
-            -webkit-background-clip: text;
-            background-clip: text;
-            color: transparent;
+            background: linear-gradient(135deg,#4f46e5,#a855f7);
+            -webkit-background-clip: text; background-clip: text; color: transparent;
         }
 
-        /* 平滑滚动 */
-        html {
-            scroll-behavior: smooth;
+        /* ── 筛选侧栏 ── */
+        .filter-section-title {
+            font-size: .7rem; font-weight: 700; letter-spacing: .12em;
+            text-transform: uppercase; color: #94a3b8; margin-bottom: .6rem;
+        }
+        .cat-item {
+            display: flex; align-items: center; gap: 8px;
+            padding: 6px 10px; border-radius: 8px; cursor: pointer;
+            font-size: .875rem; color: #475569; transition: all .15s;
+        }
+        html.dark .cat-item { color: #94a3b8; }
+        .cat-item:hover { background: rgba(99,102,241,.08); color: #4f46e5; }
+        .cat-item.active { background: rgba(99,102,241,.12); color: #4f46e5; font-weight: 600; }
+        html.dark .cat-item.active { background: rgba(99,102,241,.22); color: #818cf8; }
+        .cat-count {
+            margin-left: auto; font-size: .7rem; padding: 1px 6px;
+            border-radius: 99px; background: rgba(148,163,184,.15);
         }
 
-        /* 文章卡片动画 */
+        .tag-chip {
+            display: inline-flex; align-items: center; gap: 4px;
+            padding: 3px 10px; border-radius: 99px; font-size: .75rem; font-weight: 500;
+            cursor: pointer; border: 1.5px solid transparent;
+            background: rgba(148,163,184,.1); color: #64748b;
+            transition: all .15s;
+        }
+        html.dark .tag-chip { background: rgba(148,163,184,.12); color: #94a3b8; }
+        .tag-chip:hover { border-color: #a855f7; color: #a855f7; }
+        .tag-chip.active {
+            background: rgba(168,85,247,.12); color: #a855f7;
+            border-color: rgba(168,85,247,.5); font-weight: 600;
+        }
+        html.dark .tag-chip.active { background: rgba(168,85,247,.22); }
+
+        /* ── 搜索框 ── */
+        .search-box {
+            width: 100%; padding: 8px 12px 8px 36px;
+            border: 1.5px solid rgba(148,163,184,.3);
+            border-radius: 10px; font-size: .875rem; outline: none;
+            background: transparent; color: inherit;
+            transition: border-color .2s;
+        }
+        .search-box:focus { border-color: #6366f1; }
+        html.dark .search-box { border-color: rgba(148,163,184,.2); }
+
+        /* ── 文章卡片 ── */
         .article-card {
-            transition: all 0.3s ease;
-            animation: fadeInUp 0.5s ease-out;
+            border-radius: 14px;
+            border: 1px solid rgba(148,163,184,.18);
+            background: rgba(255,255,255,.9);
+            transition: all .25s ease;
+            animation: fadeUp .4s ease-out both;
         }
-
+        html.dark .article-card {
+            background: rgba(30,41,59,.8);
+            border-color: rgba(148,163,184,.12);
+        }
         .article-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+            transform: translateY(-3px);
+            box-shadow: 0 8px 30px rgba(99,102,241,.12);
+            border-color: rgba(99,102,241,.3);
+        }
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(14px); }
+            to   { opacity: 1; transform: translateY(0); }
         }
 
-        @keyframes fadeInUp {
-            from {
-                opacity: 0;
-                transform: translateY(20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
+        /* ── 激活标签条 ── */
+        .active-filter-chip {
+            display: inline-flex; align-items: center; gap: 4px;
+            padding: 3px 8px; border-radius: 99px; font-size: .72rem; font-weight: 600;
+            background: rgba(99,102,241,.1); color: #4f46e5;
+            border: 1px solid rgba(99,102,241,.25);
+            cursor: pointer; transition: all .15s;
         }
+        .active-filter-chip:hover { background: rgba(239,68,68,.1); color: #ef4444; border-color: rgba(239,68,68,.3); }
+
+        /* ── 移动端筛选抽屉 ── */
+        #mobile-filter-panel {
+            border-top: 1px solid rgba(148,163,184,.2);
+            background: var(--bg-secondary, #f1f5f9);
+        }
+
+        html { scroll-behavior: smooth; }
     </style>
 </head>
 <body>
-    <!-- 深色模式切换按钮 -->
     <button class="dark-mode-toggle" onclick="toggleDarkMode()">
         <i class="fas fa-moon" id="theme-icon"></i>
     </button>
 
     <!-- 导航栏 -->
     <nav class="navbar fixed top-0 w-full z-50">
-        <div class="container mx-auto px-6 py-4">
+        <div class="max-w-7xl mx-auto px-6 py-4">
             <div class="flex items-center justify-between">
-                <div class="text-2xl font-bold text-indigo-600">
-                    <a href="index.html" class="brand-mark hover:opacity-90 transition-opacity">
-                        <span class="brand-mark-text">My Blog</span>
-                    </a>
+                <a href="index.html" class="brand-mark hover:opacity-90 transition-opacity text-2xl">
+                    <span class="brand-mark-text">My Blog</span>
+                </a>
+                <div class="hidden md:flex space-x-8 text-sm font-medium">
+                    <a href="index.html" class="text-gray-600 dark:text-gray-300 hover:text-indigo-600 transition-colors">首页</a>
+                    <a href="blog.html" class="text-indigo-600 font-semibold">博客</a>
+                    <a href="about.html" class="text-gray-600 dark:text-gray-300 hover:text-indigo-600 transition-colors">关于我</a>
                 </div>
-                <div class="hidden md:flex space-x-8">
-                    <a href="index.html" class="nav-link text-gray-700 hover:text-indigo-600 transition-colors">首页</a>
-                    <a href="blog.html" class="nav-link text-gray-700 hover:text-indigo-600 transition-colors">博客</a>
-                    <a href="about.html" class="nav-link text-gray-700 hover:text-indigo-600 transition-colors">关于我</a>
-                </div>
-                <div class="hidden md:flex items-center gap-4 text-gray-600 dark:text-gray-200">
-                    <a id="contact-gitee" href="#" target="_blank" class="hover:text-indigo-600 transition-colors" aria-label="Gitee">
-                        <i class="fas fa-code-branch text-lg"></i>
-                    </a>
-                    <button type="button" onclick="openEmailModal()" class="hover:text-indigo-600 transition-colors" aria-label="Email">
-                        <i class="fas fa-envelope text-lg"></i>
-                    </button>
-                    <button type="button" onclick="openQQModal()" class="hover:text-indigo-600 transition-colors" aria-label="QQ">
-                        <i class="fab fa-qq text-lg"></i>
-                    </button>
-                    <a href="about.html" class="ml-1 guest-only" data-auth-trigger="1" aria-label="关于博主 / 登录">
-                        <img class="author-avatar-thumb hidden" alt="博主头像" />
+                <div class="hidden md:flex items-center gap-4 text-gray-500 dark:text-gray-300">
+                    <a id="contact-gitee" href="#" target="_blank" class="hover:text-indigo-600 transition-colors"><i class="fas fa-code-branch text-lg"></i></a>
+                    <button onclick="openEmailModal()" class="hover:text-indigo-600 transition-colors"><i class="fas fa-envelope text-lg"></i></button>
+                    <button onclick="openQQModal()" class="hover:text-indigo-600 transition-colors"><i class="fab fa-qq text-lg"></i></button>
+                    <a href="about.html" class="ml-1 guest-only" data-auth-trigger="1">
+                        <img class="author-avatar-thumb hidden" alt="博主头像"/>
                         <span class="guest-avatar-btn"><i class="fas fa-user"></i></span>
                     </a>
-                    <a href="about.html" class="ml-1 admin-only hidden" aria-label="Avatar">
-                        <img class="author-avatar-thumb hidden" alt="头像缩略图" />
+                    <a href="about.html" class="ml-1 admin-only hidden">
+                        <img class="author-avatar-thumb hidden" alt="头像缩略图"/>
                     </a>
                 </div>
-                <button class="md:hidden" onclick="toggleMobileMenu()">
-                    <i class="fas fa-bars text-2xl"></i>
-                </button>
+                <button class="md:hidden" onclick="toggleMobileMenu()"><i class="fas fa-bars text-xl"></i></button>
             </div>
-            <div id="mobile-menu" class="hidden md:hidden mt-4 space-y-2">
-                <a href="index.html" class="block py-2 text-gray-700 hover:text-indigo-600">首页</a>
-                <a href="blog.html" class="block py-2 text-gray-700 hover:text-indigo-600">博客</a>
-                <a href="about.html" class="block py-2 text-gray-700 hover:text-indigo-600">关于我</a>
+            <div id="mobile-menu" class="hidden md:hidden mt-4 space-y-2 text-sm">
+                <a href="index.html" class="block py-2 text-gray-700 dark:text-gray-200 hover:text-indigo-600">首页</a>
+                <a href="blog.html" class="block py-2 text-indigo-600 font-semibold">博客</a>
+                <a href="about.html" class="block py-2 text-gray-700 dark:text-gray-200 hover:text-indigo-600">关于我</a>
             </div>
         </div>
     </nav>
 
-    <!-- 主要内容 -->
-    <main class="pt-20 min-h-screen">
-        <!-- 页面标题 -->
-        <section class="py-20 px-6 bg-gradient-to-r from-indigo-600 to-purple-600 text-white">
-            <div class="container mx-auto text-center">
-                <h1 class="text-4xl md:text-5xl font-bold mb-4">我的博客文章</h1>
-                <p class="text-xl opacity-90">Learning & Sharing</p>
-                <div class="mt-8">
-                    <a href="editor.html" data-require-admin="1" data-admin-hint="写文章需要先登录管理员账号。" class="inline-flex items-center gap-2 bg-white/95 text-indigo-700 px-6 py-3 rounded-full font-bold hover:bg-white transition-colors">
-                        <i class="fas fa-pen"></i> 写博客
-                    </a>
-                </div>
+    <!-- Hero -->
+    <header class="pt-20">
+        <div class="bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-16 px-6 text-center">
+            <h1 class="text-4xl md:text-5xl font-bold mb-3">我的博客文章</h1>
+            <p class="text-lg opacity-85">Learning &amp; Sharing</p>
+            <div class="mt-6">
+                <a href="editor.html" data-require-admin="1" data-admin-hint="写文章需要先登录管理员账号。"
+                   class="inline-flex items-center gap-2 bg-white/95 text-indigo-700 px-5 py-2.5 rounded-full font-bold hover:bg-white transition-colors text-sm">
+                    <i class="fas fa-pen"></i> 写博客
+                </a>
             </div>
-        </section>
+        </div>
+    </header>
 
-        <!-- 文章列表 -->
-        <section class="py-20 px-6">
-            <div class="container mx-auto">
-                <div class="max-w-4xl mx-auto">
-                    <div id="articles-container" class="space-y-8">
-                        <!-- 文章列表将通过JavaScript动态加载 -->
+    <!-- 主区域：侧栏 + 文章列表 -->
+    <main class="max-w-7xl mx-auto px-4 md:px-6 py-10 min-h-screen">
+        <!-- 移动端：筛选折叠按钮 -->
+        <div class="lg:hidden mb-4 flex items-center gap-3">
+            <button id="mobile-filter-toggle" onclick="toggleMobileFilter()"
+                    class="flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800">
+                <i class="fas fa-filter text-indigo-500"></i> 筛选
+                <span id="active-filter-count" class="hidden w-4 h-4 rounded-full bg-indigo-600 text-white text-[10px] flex items-center justify-center">0</span>
+            </button>
+            <span id="result-count-mobile" class="text-sm text-gray-500"></span>
+        </div>
+        <!-- 移动端筛选抽屉 -->
+        <div id="mobile-filter-panel" class="hidden lg:hidden rounded-xl p-4 mb-6 space-y-5">
+            <div class="relative">
+                <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
+                <input id="search-input-mobile" type="text" class="search-box" placeholder="搜索标题或摘要…" oninput="applyFilters()"/>
+            </div>
+            <div>
+                <div class="filter-section-title">分类</div>
+                <div id="cat-filter-mobile" class="space-y-1"></div>
+            </div>
+            <div>
+                <div class="filter-section-title">标签</div>
+                <div id="tag-filter-mobile" class="flex flex-wrap gap-2"></div>
+            </div>
+        </div>
+
+        <div class="flex gap-8">
+            <!-- ── 桌面端侧栏 ── -->
+            <aside class="hidden lg:block w-56 shrink-0">
+                <div class="sticky top-24 space-y-7">
+                    <!-- 搜索 -->
+                    <div>
+                        <div class="filter-section-title">搜索</div>
+                        <div class="relative">
+                            <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
+                            <input id="search-input" type="text" class="search-box" placeholder="标题 / 摘要…" oninput="applyFilters()"/>
+                        </div>
                     </div>
-                    <div id="loading" class="text-center py-12">
-                        <i class="fas fa-spinner fa-spin text-4xl text-indigo-600"></i>
-                        <p class="mt-4 text-gray-600">加载中...</p>
+                    <!-- 分类 -->
+                    <div>
+                        <div class="filter-section-title">分类</div>
+                        <ul id="cat-filter" class="space-y-0.5"></ul>
                     </div>
-                    <div id="error" class="hidden text-center py-12">
-                        <i class="fas fa-exclamation-circle text-4xl text-red-600"></i>
-                        <p class="mt-4 text-gray-600">加载失败，请检查后端服务是否启动</p>
+                    <!-- 标签 -->
+                    <div>
+                        <div class="filter-section-title">标签</div>
+                        <div id="tag-filter" class="flex flex-wrap gap-2"></div>
                     </div>
+                    <!-- 清除筛选 -->
+                    <button id="clear-filters" onclick="clearFilters()"
+                            class="hidden w-full text-xs text-center text-indigo-600 dark:text-indigo-400 hover:underline">
+                        <i class="fas fa-times mr-1"></i>清除所有筛选
+                    </button>
+                </div>
+            </aside>
+
+            <!-- ── 文章列表主区域 ── -->
+            <div class="flex-1 min-w-0">
+                <!-- 结果栏 -->
+                <div class="flex items-center flex-wrap gap-3 mb-6">
+                    <span id="result-count" class="text-sm text-gray-500 dark:text-gray-400 font-medium"></span>
+                    <div id="active-filter-tags" class="flex flex-wrap gap-2"></div>
+                </div>
+
+                <!-- 文章卡片 -->
+                <div id="articles-container" class="space-y-5"></div>
+
+                <!-- 状态提示 -->
+                <div id="loading" class="py-20 text-center text-gray-500">
+                    <i class="fas fa-spinner fa-spin text-3xl text-indigo-500 mb-3 block"></i>加载中…
+                </div>
+                <div id="error" class="hidden py-20 text-center">
+                    <i class="fas fa-exclamation-circle text-3xl text-red-400 mb-3 block"></i>
+                    <p class="text-gray-500">加载失败，请确认后端服务已启动</p>
+                </div>
+                <div id="empty" class="hidden py-20 text-center text-gray-400">
+                    <i class="fas fa-inbox text-4xl mb-3 block"></i>暂无符合条件的文章
                 </div>
             </div>
-        </section>
+        </div>
     </main>
 
     <!-- 页脚 -->
-    <footer class="bg-gray-900 text-white py-8 px-6">
-        <div class="container mx-auto text-center">
-            <p>&copy; 2026 zimu的个人博客. All rights reserved.</p>
+    <footer class="bg-gray-900 text-white py-8 px-6 mt-10">
+        <div class="max-w-7xl mx-auto text-center text-sm opacity-70">
+            &copy; 2026 zimu的个人博客. All rights reserved.
         </div>
     </footer>
 
-    <!-- 联系方式弹窗：邮箱 -->
+    <!-- 弹窗：邮箱 -->
     <div id="email-modal" class="hidden fixed inset-0 z-[1100]">
         <div class="absolute inset-0 bg-black/50" onclick="closeEmailModal()"></div>
         <div class="relative max-w-md mx-auto mt-32 bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-xl">
             <div class="flex items-center justify-between">
-                <h3 class="text-lg font-bold text-gray-900 dark:text-white">邮箱</h3>
-                <button type="button" class="text-gray-500 hover:text-gray-700 dark:hover:text-gray-200" onclick="closeEmailModal()" aria-label="Close">
-                    <i class="fas fa-times"></i>
-                </button>
+                <h3 class="font-bold text-gray-900 dark:text-white">邮箱</h3>
+                <button onclick="closeEmailModal()"><i class="fas fa-times text-gray-400"></i></button>
             </div>
-            <p class="mt-4 text-gray-600 dark:text-gray-300">email：</p>
-            <div class="mt-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-4 py-3 font-mono text-sm text-gray-900 dark:text-white">
-                <span id="email-text">加载中...</span>
+            <div class="mt-4 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 px-4 py-3 font-mono text-sm">
+                <span id="email-text">加载中…</span>
             </div>
         </div>
     </div>
-
-    <!-- 联系方式弹窗：QQ -->
+    <!-- 弹窗：QQ -->
     <div id="qq-modal" class="hidden fixed inset-0 z-[1100]">
         <div class="absolute inset-0 bg-black/50" onclick="closeQQModal()"></div>
         <div class="relative max-w-md mx-auto mt-32 bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-xl">
             <div class="flex items-center justify-between">
-                <h3 class="text-lg font-bold text-gray-900 dark:text-white">QQ</h3>
-                <button type="button" class="text-gray-500 hover:text-gray-700 dark:hover:text-gray-200" onclick="closeQQModal()" aria-label="Close">
-                    <i class="fas fa-times"></i>
-                </button>
+                <h3 class="font-bold text-gray-900 dark:text-white">QQ</h3>
+                <button onclick="closeQQModal()"><i class="fas fa-times text-gray-400"></i></button>
             </div>
-            <p class="mt-4 text-gray-600 dark:text-gray-300">QQ：</p>
-            <div class="mt-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-4 py-3 font-mono text-sm text-gray-900 dark:text-white">
-                <span id="qq-text">加载中...</span>
+            <div class="mt-4 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 px-4 py-3 font-mono text-sm">
+                <span id="qq-text">加载中…</span>
             </div>
         </div>
     </div>
 
     <script src="/assets/script.js"></script>
     <script>
-        function openEmailModal() { document.getElementById('email-modal')?.classList.remove('hidden'); }
-        function closeEmailModal() { document.getElementById('email-modal')?.classList.add('hidden'); }
-        function openQQModal() { document.getElementById('qq-modal')?.classList.remove('hidden'); }
-        function closeQQModal() { document.getElementById('qq-modal')?.classList.add('hidden'); }
+        function openEmailModal() { document.getElementById('email-modal').classList.remove('hidden'); }
+        function closeEmailModal() { document.getElementById('email-modal').classList.add('hidden'); }
+        function openQQModal() { document.getElementById('qq-modal').classList.remove('hidden'); }
+        function closeQQModal() { document.getElementById('qq-modal').classList.add('hidden'); }
 
-        // 加载文章列表
-        async function loadArticles() {
+        // ═══════════════════════════════════════════════
+        //  数据状态
+        // ═══════════════════════════════════════════════
+        let allArticles = [];
+        let allCategories = [];
+        let allTags = [];
+        let selectedCategory = null;   // null = 全部
+        let selectedTags = new Set();  // tag id 集合
+
+        // ═══════════════════════════════════════════════
+        //  加载数据
+        // ═══════════════════════════════════════════════
+        async function loadData() {
             try {
-                const response = await fetch("/api/articles");
-                if (!response.ok) throw new Error('HTTP ' + response.status);
-                const articles = await response.json();
+                const [artRes, catRes, tagRes] = await Promise.all([
+                    fetch('/api/articles'),
+                    fetch('/api/categories'),
+                    fetch('/api/tags'),
+                ]);
+                if (!artRes.ok) throw new Error('articles');
+                allArticles   = await artRes.json();
+                allCategories = catRes.ok ? await catRes.json() : [];
+                allTags       = tagRes.ok ? await tagRes.json() : [];
 
-                const container = document.getElementById('articles-container');
-                const loading = document.getElementById('loading');
-                const error = document.getElementById('error');
-
-                loading.classList.add('hidden');
-                container.innerHTML = '';
-
-                if (articles.length === 0) {
-                    container.innerHTML = '<p class="text-center text-gray-600 py-8">暂无文章</p>';
-                    return;
-                }
-
-                articles.forEach((article, index) => {
-                    const card = document.createElement('div');
-                    card.className = 'article-card bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg cursor-pointer';
-                    card.style.animationDelay = `${index * 0.1}s`;
-                    card.innerHTML = `
-                        <div class="flex flex-col md:flex-row md:items-start justify-between gap-4">
-                            <div class="flex-1">
-                                <h2 class="text-2xl font-bold mb-2 text-indigo-600 hover:text-indigo-800">
-                                    <a href="detail.html?id=${article.id}">${article.title}</a>
-                                </h2>
-                                <p class="text-gray-600 dark:text-gray-300 mb-2">${article.summary}</p>
-                                <div class="flex flex-wrap gap-2 mb-3 text-xs">
-                                    ${article.category ? `<span class="px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300">${article.category.name}</span>` : ''}
-                                    ${(article.tags || []).map((t) => `<span class="px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">${t.name}</span>`).join('')}
-                                </div>
-                                <div class="flex items-center gap-4 text-sm text-gray-500">
-                                    <span><i class="fas fa-calendar-alt mr-2"></i>${article.date}</span>
-                                    <span><i class="fas fa-user mr-2"></i>${article.author}</span>
-                                    <span><i class="fas fa-comments mr-1"></i>${article.comment_count ?? 0}</span>
-                                    <span><i class="fas fa-thumbs-up mr-1"></i>${article.likes ?? 0}</span>
-                                </div>
-                            </div>
-                            <div class="self-start flex items-center gap-2">
-                                <a href="detail.html?id=${article.id}" class="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 transition-colors">
-                                    阅读全文 <i class="fas fa-arrow-right ml-2"></i>
-                                </a>
-                                <a href="editor.html?id=${article.id}" data-require-admin="1" data-admin-hint="编辑文章需要先登录管理员账号。" class="bg-white dark:bg-gray-900 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-400/30 px-4 py-2 rounded hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition-colors">
-                                    编辑 <i class="fas fa-pen ml-2"></i>
-                                </a>
-                                <button type="button" class="bg-white dark:bg-gray-900 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-400/30 px-4 py-2 rounded hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors js-delete-article" data-article-id="${article.id}" data-article-title="${article.title ?? ''}">
-                                    删除 <i class="fas fa-trash ml-2"></i>
-                                </button>
-                            </div>
-                        </div>
-                    `;
-                    card.addEventListener('click', (e) => {
-                        if (e.target.closest('a') || e.target.closest('button')) return;
-                        const url = `detail.html?id=${article.id}`;
-                        if (e.ctrlKey || e.metaKey) window.open(url, '_blank');
-                        else window.location.href = url;
-                    });
-                    container.appendChild(card);
-                });
-
-                // 文章卡片是动态插入的：插入后按当前登录态刷新一次权限显示
+                document.getElementById('loading').classList.add('hidden');
+                renderFilterSidebar();
+                applyFilters();
                 if (window.UI?.applyAuthState) UI.applyAuthState();
-            } catch (error) {
-                console.error('获取文章列表失败:', error);
+            } catch (e) {
+                console.error(e);
                 document.getElementById('loading').classList.add('hidden');
                 document.getElementById('error').classList.remove('hidden');
             }
         }
 
-        // 登录态变化后，刷新一次权限显示（文章列表是动态 DOM）
-        window.addEventListener('auth-changed', () => {
-            if (window.UI?.applyAuthState) UI.applyAuthState();
-        });
+        // ═══════════════════════════════════════════════
+        //  渲染筛选侧栏
+        // ═══════════════════════════════════════════════
+        function renderFilterSidebar() {
+            ['', '-mobile'].forEach(suffix => {
+                // ── 分类 ──
+                const catEl = document.getElementById(`cat-filter${suffix}`);
+                if (!catEl) return;
+                catEl.innerHTML = '';
+                // "全部"项
+                const liAll = makeCatItem(null, '全部', allArticles.length);
+                catEl.appendChild(liAll);
+                // 各分类
+                allCategories.forEach(cat => {
+                    const cnt = allArticles.filter(a => a.category?.id === cat.id).length;
+                    catEl.appendChild(makeCatItem(cat.id, cat.name, cnt));
+                });
 
+                // ── 标签 ──
+                const tagEl = document.getElementById(`tag-filter${suffix}`);
+                if (!tagEl) return;
+                tagEl.innerHTML = '';
+                allTags.forEach(tag => {
+                    const cnt = allArticles.filter(a => (a.tags||[]).some(t => t.id === tag.id)).length;
+                    if (cnt === 0) return;
+                    const chip = document.createElement('button');
+                    chip.type = 'button';
+                    chip.className = `tag-chip ${selectedTags.has(tag.id) ? 'active' : ''}`;
+                    chip.dataset.tagId = tag.id;
+                    chip.innerHTML = `${tag.name}<span class="opacity-50 text-[10px]">${cnt}</span>`;
+                    chip.addEventListener('click', () => toggleTag(tag.id));
+                    tagEl.appendChild(chip);
+                });
+            });
+        }
+
+        function makeCatItem(catId, label, count) {
+            const li = document.createElement('li');
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = `cat-item w-full text-left ${selectedCategory === catId ? 'active' : ''}`;
+            btn.dataset.catId = catId ?? '__all__';
+            btn.innerHTML = `
+                <i class="fas ${catId ? 'fa-folder text-indigo-400' : 'fa-layer-group text-gray-400'} text-xs w-4"></i>
+                <span class="truncate">${label}</span>
+                <span class="cat-count">${count}</span>`;
+            btn.addEventListener('click', () => selectCategory(catId));
+            li.appendChild(btn);
+            return li;
+        }
+
+        // ═══════════════════════════════════════════════
+        //  筛选逻辑
+        // ═══════════════════════════════════════════════
+        function selectCategory(catId) {
+            selectedCategory = catId;
+            syncFilterUI();
+            applyFilters();
+        }
+
+        function toggleTag(tagId) {
+            if (selectedTags.has(tagId)) selectedTags.delete(tagId);
+            else selectedTags.add(tagId);
+            syncFilterUI();
+            applyFilters();
+        }
+
+        function clearFilters() {
+            selectedCategory = null;
+            selectedTags.clear();
+            document.getElementById('search-input').value = '';
+            const mob = document.getElementById('search-input-mobile');
+            if (mob) mob.value = '';
+            syncFilterUI();
+            applyFilters();
+        }
+
+        function getSearchKeyword() {
+            const d = document.getElementById('search-input')?.value || '';
+            const m = document.getElementById('search-input-mobile')?.value || '';
+            return (d || m).trim().toLowerCase();
+        }
+
+        function applyFilters() {
+            const keyword = getSearchKeyword();
+            const filtered = allArticles.filter(a => {
+                // 分类筛选
+                if (selectedCategory !== null && a.category?.id !== selectedCategory) return false;
+                // 标签筛选（所有已选标签都需命中）
+                if (selectedTags.size > 0) {
+                    const artTagIds = new Set((a.tags||[]).map(t => t.id));
+                    for (const tid of selectedTags) {
+                        if (!artTagIds.has(tid)) return false;
+                    }
+                }
+                // 关键词筛选
+                if (keyword) {
+                    const haystack = `${a.title} ${a.summary || ''}`.toLowerCase();
+                    if (!haystack.includes(keyword)) return false;
+                }
+                return true;
+            });
+            renderArticles(filtered);
+            updateResultBar(filtered.length);
+            updateActiveTags();
+            updateClearBtn();
+        }
+
+        // ═══════════════════════════════════════════════
+        //  同步 UI 状态（高亮选中项）
+        // ═══════════════════════════════════════════════
+        function syncFilterUI() {
+            document.querySelectorAll('.cat-item').forEach(btn => {
+                const id = btn.dataset.catId === '__all__' ? null : btn.dataset.catId;
+                btn.classList.toggle('active', id === selectedCategory);
+            });
+            document.querySelectorAll('.tag-chip').forEach(chip => {
+                chip.classList.toggle('active', selectedTags.has(chip.dataset.tagId));
+            });
+        }
+
+        function updateClearBtn() {
+            const hasFilter = selectedCategory !== null || selectedTags.size > 0 || getSearchKeyword();
+            document.getElementById('clear-filters')?.classList.toggle('hidden', !hasFilter);
+            const badge = document.getElementById('active-filter-count');
+            const total = (selectedCategory !== null ? 1 : 0) + selectedTags.size + (getSearchKeyword() ? 1 : 0);
+            if (badge) {
+                badge.textContent = total;
+                badge.classList.toggle('hidden', total === 0);
+                badge.classList.toggle('flex', total > 0);
+            }
+        }
+
+        function updateResultBar(count) {
+            const text = selectedCategory !== null || selectedTags.size > 0 || getSearchKeyword()
+                ? `筛选结果：${count} 篇`
+                : `全部 ${count} 篇文章`;
+            document.getElementById('result-count').textContent = text;
+            document.getElementById('result-count-mobile').textContent = text;
+        }
+
+        function updateActiveTags() {
+            const bar = document.getElementById('active-filter-tags');
+            bar.innerHTML = '';
+            // 分类标签
+            if (selectedCategory !== null) {
+                const cat = allCategories.find(c => c.id === selectedCategory);
+                if (cat) bar.appendChild(makeFilterChip('分类: ' + cat.name, () => selectCategory(null)));
+            }
+            // 标签
+            selectedTags.forEach(tid => {
+                const tag = allTags.find(t => t.id === tid);
+                if (tag) bar.appendChild(makeFilterChip('# ' + tag.name, () => toggleTag(tid)));
+            });
+            // 搜索词
+            const kw = getSearchKeyword();
+            if (kw) bar.appendChild(makeFilterChip(`"${kw}"`, () => {
+                document.getElementById('search-input').value = '';
+                const m = document.getElementById('search-input-mobile');
+                if (m) m.value = '';
+                applyFilters();
+            }));
+        }
+
+        function makeFilterChip(label, onRemove) {
+            const chip = document.createElement('span');
+            chip.className = 'active-filter-chip';
+            chip.innerHTML = `${label} <i class="fas fa-times text-[9px]"></i>`;
+            chip.addEventListener('click', onRemove);
+            return chip;
+        }
+
+        // ═══════════════════════════════════════════════
+        //  渲染文章卡片
+        // ═══════════════════════════════════════════════
+        function renderArticles(articles) {
+            const container = document.getElementById('articles-container');
+            const emptyEl   = document.getElementById('empty');
+            container.innerHTML = '';
+            if (articles.length === 0) {
+                emptyEl.classList.remove('hidden');
+                return;
+            }
+            emptyEl.classList.add('hidden');
+
+            articles.forEach((article, idx) => {
+                const card = document.createElement('div');
+                card.className = 'article-card p-5 md:p-6 cursor-pointer';
+                card.style.animationDelay = `${Math.min(idx, 8) * 0.05}s`;
+
+                const catBadge = article.category
+                    ? `<button type="button" onclick="selectCategory('${article.category.id}'); event.stopPropagation();"
+                          class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 transition-colors">
+                          <i class="fas fa-folder text-[10px] mr-1 opacity-60"></i>${article.category.name}
+                       </button>`
+                    : '';
+
+                const tagBadges = (article.tags || []).map(t =>
+                    `<button type="button" onclick="toggleTag('${t.id}'); event.stopPropagation();"
+                         class="px-2 py-0.5 rounded-full text-xs bg-gray-100 dark:bg-gray-700/60 text-gray-600 dark:text-gray-300 hover:bg-purple-50 dark:hover:bg-purple-900/30 hover:text-purple-600 dark:hover:text-purple-300 transition-colors">
+                         #${t.name}
+                     </button>`
+                ).join('');
+
+                card.innerHTML = `
+                    <div class="flex flex-col md:flex-row md:items-start gap-4">
+                        <div class="flex-1 min-w-0">
+                            <a href="detail.html?id=${article.id}"
+                               class="text-xl md:text-2xl font-bold text-slate-800 dark:text-slate-100 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors leading-snug block mb-2">
+                                ${article.title}
+                            </a>
+                            <p class="text-gray-500 dark:text-gray-400 text-sm leading-relaxed mb-3 line-clamp-2">${article.summary || ''}</p>
+                            <div class="flex flex-wrap items-center gap-2 mb-3">
+                                ${catBadge}
+                                ${tagBadges}
+                            </div>
+                            <div class="flex flex-wrap items-center gap-4 text-xs text-gray-400 dark:text-gray-500">
+                                <span><i class="fas fa-calendar-alt mr-1"></i>${article.date}</span>
+                                <span><i class="fas fa-user mr-1"></i>${article.author || ''}</span>
+                                <span><i class="fas fa-comments mr-1"></i>${article.comment_count ?? 0}</span>
+                                <span><i class="fas fa-thumbs-up mr-1"></i>${article.likes ?? 0}</span>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2 self-start shrink-0 admin-only hidden">
+                            <a href="editor.html?id=${article.id}"
+                               data-require-admin="1" data-admin-hint="编辑文章需要先登录管理员账号。"
+                               class="px-3 py-1.5 rounded-lg border border-indigo-200 dark:border-indigo-400/30 text-indigo-600 dark:text-indigo-300 text-xs font-medium hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition-colors">
+                                <i class="fas fa-pen mr-1"></i>编辑
+                            </a>
+                            <button type="button"
+                                    class="px-3 py-1.5 rounded-lg border border-red-200 dark:border-red-400/30 text-red-500 dark:text-red-400 text-xs font-medium hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors js-delete-article"
+                                    data-article-id="${article.id}" data-article-title="${article.title}">
+                                <i class="fas fa-trash mr-1"></i>删除
+                            </button>
+                        </div>
+                        <!-- 非管理员：只显示"阅读"按钮 -->
+                        <a href="detail.html?id=${article.id}"
+                           class="guest-only shrink-0 self-start px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 transition-colors">
+                            阅读 <i class="fas fa-arrow-right ml-1 text-xs"></i>
+                        </a>
+                    </div>`;
+
+                card.addEventListener('click', (e) => {
+                    if (e.target.closest('a') || e.target.closest('button')) return;
+                    const url = `detail.html?id=${article.id}`;
+                    if (e.ctrlKey || e.metaKey) window.open(url, '_blank');
+                    else window.location.href = url;
+                });
+                container.appendChild(card);
+            });
+
+            if (window.UI?.applyAuthState) UI.applyAuthState();
+        }
+
+        // ═══════════════════════════════════════════════
+        //  移动端筛选面板
+        // ═══════════════════════════════════════════════
+        function toggleMobileFilter() {
+            const panel = document.getElementById('mobile-filter-panel');
+            panel.classList.toggle('hidden');
+        }
+
+        // ═══════════════════════════════════════════════
+        //  删除文章
+        // ═══════════════════════════════════════════════
         document.addEventListener('click', async (e) => {
             const btn = e.target?.closest?.('.js-delete-article');
             if (!btn) return;
             if (!Auth?.requireAdminOrExplain?.()) return;
-            const id = btn.getAttribute('data-article-id');
+            const id    = btn.getAttribute('data-article-id');
             const title = btn.getAttribute('data-article-title') || '';
-            const ok = confirm(`确认删除文章《${title}》？此操作不可恢复。`);
-            if (!ok) return;
+            if (!confirm(`确认删除文章《${title}》？此操作不可恢复。`)) return;
             try {
                 await API.deleteArticle(id);
-                await loadArticles();
+                allArticles = allArticles.filter(a => String(a.id) !== String(id));
+                renderFilterSidebar();
+                applyFilters();
             } catch (err) {
                 alert(err?.message ?? '删除失败');
             }
         });
 
-        // 切换深色模式
+        window.addEventListener('auth-changed', () => {
+            if (window.UI?.applyAuthState) UI.applyAuthState();
+        });
+
+        // ═══════════════════════════════════════════════
+        //  深色模式 & 菜单
+        // ═══════════════════════════════════════════════
         function toggleDarkMode() {
             const html = document.documentElement;
             const icon = document.getElementById('theme-icon');
-
             if (html.classList.contains('dark')) {
                 html.classList.remove('dark');
                 icon.className = 'fas fa-moon';
@@ -339,25 +648,20 @@
                 localStorage.setItem('darkMode', 'true');
             }
         }
-
-        // 切换移动端菜单
         function toggleMobileMenu() {
-            const menu = document.getElementById('mobile-menu');
-            menu.classList.toggle('hidden');
+            document.getElementById('mobile-menu').classList.toggle('hidden');
         }
 
-        // 页面加载时执行
+        // ═══════════════════════════════════════════════
+        //  初始化
+        // ═══════════════════════════════════════════════
         document.addEventListener('DOMContentLoaded', async () => {
-            // 检查深色模式设置
-            const darkMode = localStorage.getItem('darkMode');
-            if (darkMode === 'true') {
+            if (localStorage.getItem('darkMode') === 'true') {
                 document.documentElement.classList.add('dark');
                 document.getElementById('theme-icon').className = 'fas fa-sun';
             }
-
-            // 加载文章列表
-            loadArticles();
             await Contact.init();
+            loadData();
         });
     </script>
 </body>
