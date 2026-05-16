@@ -1,5 +1,5 @@
 // 后端 Render 地址，部署后替换为实际 URL，例如 'https://dbm-blog-backend.onrender.com'
-const DBM_API_BACKEND = 'https://dbm-blog-backend.onrender.com';
+const DBM_API_BACKEND = 'https://dbm-blog.onrender.com';
 
 const DarkMode = {
     toggle() {
