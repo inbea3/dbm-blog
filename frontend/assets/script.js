@@ -1,3 +1,6 @@
+// 部署到 GitHub Pages 时，将此值设为后端服务器地址（例如 'https://your-backend.onrender.com'），留空则使用同源
+const DBM_API_BACKEND = '';
+
 const DarkMode = {
     toggle() {
         const html = document.documentElement;
@@ -34,7 +37,7 @@ const MobileMenu = {
 };
 
 function apiRoot() {
-    return `${window.location.origin}/api`;
+    return DBM_API_BACKEND ? `${DBM_API_BACKEND}/api` : `${window.location.origin}/api`;
 }
 
 const Auth = {
