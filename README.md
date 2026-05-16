@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 
-基于 **Flask** 与 **PostgreSQL** 的单体博客：服务端渲染文章 HTML、REST API、会话登录与访客互动；前端为原生 **HTML + Tailwind CDN + 共享 JS/CSS**，无 SPA 构建步骤。
+基于 **Flask** 与 **PostgreSQL** 的单体博客：服务端渲染文章 HTML、REST API、会话登录与访客互动；前端为原生 **HTML + Tailwind CDN + 共享 JS/CSS**，无SPA构建步骤。
 
 ---
 
