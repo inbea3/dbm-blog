@@ -1,19 +1,19 @@
 services:
   - type: web
-    name: dbm-blog-backend
+    name: dbm-blog
     env: python
     rootDir: backend
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn -w 2 -b 0.0.0.0:$PORT app:app
+    startCommand: gunicorn -w 2 -b "0.0.0.0:$PORT" app:app
     envVars:
       - key: PGHOST
-        sync: false
+        value: ep-icy-frost-aoukhqis-pooler.c-2.ap-southeast-1.aws.neon.tech
       - key: PGDATABASE
-        sync: false
+        value: neondb
       - key: PGUSER
-        sync: false
+        value: neondb_owner
       - key: PGPASSWORD
-        sync: false
+        value: npg_uytfgi2I3kwQ
       - key: PGSSLMODE
         value: require
       - key: PGCHANNELBINDING
