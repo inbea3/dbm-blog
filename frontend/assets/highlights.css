@@ -1,0 +1,251 @@
+/* 正文划线高亮（inline span，不破坏块级排版） */
+.hl-mark {
+    display: inline;
+    box-decoration-break: clone;
+    -webkit-box-decoration-break: clone;
+    background: linear-gradient(180deg, transparent 55%, rgba(250, 204, 21, 0.55) 55%);
+    cursor: pointer;
+    border-radius: 2px;
+    padding: 0 1px;
+    transition: background 0.15s ease;
+}
+html.dark .hl-mark {
+    background: linear-gradient(180deg, transparent 55%, rgba(234, 179, 8, 0.35) 55%);
+}
+.hl-mark:hover,
+.hl-mark.hl-active {
+    background: rgba(250, 204, 21, 0.75);
+}
+html.dark .hl-mark:hover,
+html.dark .hl-mark.hl-active {
+    background: rgba(234, 179, 8, 0.5);
+}
+
+/* 右键上下文菜单 */
+.hl-context-menu {
+    position: fixed;
+    z-index: 1200;
+    min-width: 10.5rem;
+    padding: 0.35rem;
+    border-radius: 0.625rem;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06);
+    display: none;
+}
+html.dark .hl-context-menu {
+    background: #1f2937;
+    border-color: #374151;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.45);
+}
+.hl-context-menu.hl-visible {
+    display: block;
+}
+.hl-context-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border: none;
+    border-radius: 0.375rem;
+    background: transparent;
+    color: #374151;
+    font-size: 0.875rem;
+    font-weight: 500;
+    text-align: left;
+    cursor: pointer;
+    white-space: nowrap;
+}
+html.dark .hl-context-item {
+    color: #e5e7eb;
+}
+.hl-context-item i {
+    width: 1rem;
+    text-align: center;
+    color: #4f46e5;
+}
+html.dark .hl-context-item i {
+    color: #a5b4fc;
+}
+.hl-context-item:hover {
+    background: #eef2ff;
+}
+html.dark .hl-context-item:hover {
+    background: #374151;
+}
+
+/* 划线评论弹窗 */
+.hl-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1300;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+}
+.hl-modal {
+    width: 100%;
+    max-width: 32rem;
+    max-height: min(85vh, 560px);
+    display: flex;
+    flex-direction: column;
+    background: #fff;
+    border-radius: 1rem;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    overflow: hidden;
+}
+html.dark .hl-modal {
+    background: #1f2937;
+}
+.hl-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid #e5e7eb;
+}
+html.dark .hl-modal-header {
+    border-color: #374151;
+}
+.hl-modal-title {
+    font-size: 1.0625rem;
+    font-weight: 700;
+    color: #111827;
+}
+html.dark .hl-modal-title {
+    color: #f9fafb;
+}
+.hl-modal-close {
+    border: none;
+    background: transparent;
+    color: #6b7280;
+    cursor: pointer;
+    padding: 0.25rem;
+    font-size: 1.125rem;
+}
+.hl-modal-close:hover {
+    color: #374151;
+}
+html.dark .hl-modal-close:hover {
+    color: #e5e7eb;
+}
+.hl-modal-quote {
+    margin: 0 1.25rem;
+    padding: 0.75rem 1rem;
+    border-left: 3px solid #f59e0b;
+    background: #fffbeb;
+    border-radius: 0 0.5rem 0.5rem 0;
+    font-size: 0.875rem;
+    line-height: 1.6;
+    color: #78350f;
+    max-height: 5rem;
+    overflow-y: auto;
+}
+html.dark .hl-modal-quote {
+    background: rgba(245, 158, 11, 0.12);
+    color: #fcd34d;
+}
+.hl-modal-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1rem 1.25rem;
+}
+.hl-comment {
+    margin-bottom: 0.75rem;
+}
+.hl-comment-meta {
+    font-size: 0.6875rem;
+    color: #9ca3af;
+}
+.hl-comment-body {
+    margin-top: 0.25rem;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    color: #374151;
+    white-space: pre-wrap;
+}
+html.dark .hl-comment-body {
+    color: #e5e7eb;
+}
+.hl-replies {
+    margin-left: 1rem;
+    padding-left: 0.75rem;
+    border-left: 2px solid #e5e7eb;
+}
+html.dark .hl-replies {
+    border-color: #4b5563;
+}
+.hl-reply-btn {
+    margin-top: 0.25rem;
+    font-size: 0.75rem;
+    color: #4f46e5;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+}
+.hl-reply-btn:hover {
+    text-decoration: underline;
+}
+.hl-modal-footer {
+    padding: 1rem 1.25rem;
+    border-top: 1px solid #e5e7eb;
+}
+html.dark .hl-modal-footer {
+    border-color: #374151;
+}
+.hl-modal-footer textarea {
+    width: 100%;
+    min-height: 4rem;
+    resize: vertical;
+    border-radius: 0.5rem;
+    border: 1px solid #e5e7eb;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    background: #fff;
+    color: #111827;
+}
+html.dark .hl-modal-footer textarea {
+    border-color: #4b5563;
+    background: #111827;
+    color: #f9fafb;
+}
+.hl-modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+.hl-modal-actions button {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    padding: 0.4rem 0.9rem;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    border: none;
+}
+.hl-btn-primary {
+    background: #4f46e5;
+    color: #fff;
+}
+.hl-btn-primary:hover {
+    background: #4338ca;
+}
+.hl-btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+.hl-empty {
+    text-align: center;
+    color: #9ca3af;
+    font-size: 0.875rem;
+    padding: 1.5rem 0;
+}
+.hl-msg-error {
+    font-size: 0.75rem;
+    color: #dc2626;
+    margin-top: 0.25rem;
+}

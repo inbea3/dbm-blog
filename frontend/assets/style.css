@@ -1,44 +1,14 @@
 /**
- * 共享样式表
+ * 共享样式表（字体见 /assets/fonts.css，在各页 head 中先于本文件引入）
  */
 
-/* ── Google Fonts 引入（含国内 CDN fallback） ─────────────────────────
-   字体分配：
-   · Noto Sans SC     → 全局 UI / 导航 / 标签 / 正文短文本
-   · Noto Serif SC    → 文章阅读正文（长文沉浸感）
-   · ZCOOL XiaoWei    → 大标题 / 品牌 Logo（有设计感的展示字体）
-   · JetBrains Mono   → 代码块（连字等宽，程序员友好）
-   ─────────────────────────────────────────────────────────────────── */
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;600;700&family=Noto+Serif+SC:wght@400;500;600;700&family=ZCOOL+XiaoWei&family=JetBrains+Mono:ital,wght@0,400;0,500;1,400&display=swap');
-
-/* ── CSS 变量：字体族 ──────────────────────────────────────────────── */
+/* 英文 Centaur + 中文楷体（UI）；正文 .article-content 为 Centaur + Noto Serif SC */
 :root {
-    /* UI / 正文（无衬线） */
-    --font-sans:
-        "Noto Sans SC",
-        "PingFang SC", "Hiragino Sans GB",
-        "Microsoft YaHei", "微软雅黑",
-        system-ui, -apple-system, sans-serif;
-
-    /* 文章阅读正文（衬线） */
-    --font-serif:
-        "Noto Serif SC",
-        "Songti SC", "SimSun", "宋体",
-        "Source Han Serif SC", Georgia, serif;
-
-    /* 展示/标题 */
-    --font-display:
-        "ZCOOL XiaoWei",
-        "华文行楷", "STXingkai",
-        "Noto Serif SC", Georgia, serif;
-
-    /* 代码 */
-    --font-mono:
-        "JetBrains Mono",
-        "Cascadia Code", "Fira Code",
-        "SF Mono", ui-monospace,
-        SFMono-Regular, Menlo, Consolas,
-        "Courier New", monospace;
+    --font-ui: "Blog UI", "LXGW WenKai", "KaiTi", "Centaur", serif;
+    --font-body: var(--font-ui);
+    --font-article: "Blog Article", "Noto Serif SC", "Centaur", "Source Han Serif SC",
+        "Songti SC", serif;
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
 /* ── 深色模式变量 ─────────────────────────────────────────────────── */
@@ -57,56 +27,23 @@ body {
     color: var(--text-primary, #000000);
     transition: background-color 0.3s, color 0.3s;
 
-    font-family: var(--font-sans);
+    font-family: var(--font-body);
     font-size: 15px;
     line-height: 1.7;
-    /* 提升字体渲染质量 */
     -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-    text-rendering: optimizeLegibility;
 }
 
-/* ── 代码块 ──────────────────────────────────────────────────────── */
 pre, code, kbd, samp {
     font-family: var(--font-mono);
     font-size: 0.88em;
-    font-variant-ligatures: contextual; /* JetBrains Mono 连字 */
 }
 
-/* ── 展示字体：大标题 & Logo ─────────────────────────────────────── */
-/* Hero h1、页面大标题使用展示字体 */
-h1,
-.display-font {
-    font-family: var(--font-display);
-    font-weight: 400; /* ZCOOL XiaoWei 只有一个字重，不要加 bold */
-    letter-spacing: 0.02em;
-}
-
-/* 导航 Logo 沿用展示字体 */
-.brand-mark {
-    font-family: var(--font-display) !important;
-    font-weight: 400 !important;
-    letter-spacing: 0.08em;
-}
-
-/* ── 无衬线标题（h2/h3 in UI）──────────────────────────────────── */
-h2, h3, h4, h5, h6 {
-    font-family: var(--font-sans);
+h1, h2, h3, h4, h5, h6,
+.brand-mark,
+#article-title {
+    font-family: var(--font-body);
     font-weight: 700;
     line-height: 1.35;
-    letter-spacing: -0.01em;
-}
-
-/* 文章详情页标题：衬线字体，与正文阅读体验一致 */
-#article-title {
-    font-family: var(--font-serif);
-    font-weight: 700;
-    letter-spacing: -0.01em;
-}
-
-/* 导航链接 / UI 小字 保持无衬线，阅读清晰 */
-.nav-link, label, button, input, textarea, select {
-    font-family: var(--font-sans);
 }
 
 /* 深色模式切换按钮 */
@@ -247,11 +184,12 @@ html {
 }
 
 /* ── 文章阅读区 (.article-content) ─────────────────────────────── */
+/* 详情页正文：衬线阅读字体（detail.html 异步加载 Noto Serif SC） */
 .article-content {
-    /* 正文用衬线字体，沉浸阅读感更强 */
-    font-family: var(--font-serif);
-    font-size: 1.05rem;
-    line-height: 1.9;
+    font-family: var(--font-article);
+    font-size: 1.0625rem;
+    line-height: 1.95;
+    letter-spacing: 0.02em;
     color: #1e293b;
     word-break: break-word;
     overflow-wrap: break-word;
@@ -261,9 +199,9 @@ html {
     color: #cbd5e1;
 }
 
-/* 文章内 h2/h3 回到无衬线，层次对比更清晰 */
+/* 正文内标题与段落统一使用阅读字体 */
 .article-content h2 {
-    font-family: var(--font-sans);
+    font-family: inherit;
     font-size: 1.65rem;
     font-weight: 700;
     margin-top: 2.2rem;
@@ -275,7 +213,7 @@ html {
 }
 
 .article-content h3 {
-    font-family: var(--font-sans);
+    font-family: inherit;
     font-size: 1.25rem;
     font-weight: 600;
     margin-top: 1.8rem;
@@ -285,7 +223,7 @@ html {
 }
 
 .article-content h4 {
-    font-family: var(--font-sans);
+    font-family: inherit;
     font-size: 1.05rem;
     font-weight: 600;
     margin-top: 1.4rem;

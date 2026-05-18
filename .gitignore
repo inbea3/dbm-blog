@@ -43,3 +43,9 @@ pnpm-debug.log*
 
 # Cursor local project data
 .cursor/
+
+# Centaur 等授权字体文件（请本地放入 frontend/assets/fonts/，勿提交仓库）
+frontend/assets/fonts/*.woff2
+frontend/assets/fonts/*.woff
+frontend/assets/fonts/*.otf
+frontend/assets/fonts/*.ttf

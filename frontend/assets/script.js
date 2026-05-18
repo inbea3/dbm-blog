@@ -385,6 +385,34 @@ const API = {
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
         return data;
+    },
+
+    async postHighlight(articleId, payload) {
+        const res = await fetch(`${this.baseUrl}/articles/${encodeURIComponent(articleId)}/highlights`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
+        return data;
+    },
+
+    async postHighlightComment(highlightId, body, guestName, parentId) {
+        const res = await fetch(`${this.baseUrl}/highlights/${encodeURIComponent(highlightId)}/comments`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+                body,
+                guest_name: guestName || '',
+                parent_id: parentId || null
+            })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
+        return data;
     }
 };
 
@@ -569,13 +597,25 @@ async function refreshAuthorFromApi() {
     return _authorRefreshInflight;
 }
 
+function isDetailPage() {
+    return /detail\.html$/i.test(location.pathname)
+        || /\/detail\/[^/]+\/?$/i.test(location.pathname);
+}
+
+function loadZimuBrain() {
+    if (window.location.protocol === 'file:') return;
+    if (document.querySelector('script[data-zimu-brain="1"]')) return;
+    const s = document.createElement('script');
+    s.src = '/assets/zimu-brain.js';
+    s.defer = true;
+    s.setAttribute('data-zimu-brain', '1');
+    document.body.appendChild(s);
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     DarkMode.init();
     UI.installAdminNavGuards();
-    Auth.refresh().then(async () => {
-        await refreshAuthorFromApi();
-        UI.applyAuthState();
-    });
+    loadZimuBrain();
 
     document.querySelectorAll('[data-auth-trigger="1"]').forEach((el) => {
         el.addEventListener('click', (e) => {
@@ -583,11 +623,22 @@ document.addEventListener('DOMContentLoaded', () => {
             UI.openLoginModal();
         });
     });
-});
 
-window.addEventListener('pageshow', () => {
+    // 详情页自行加载文章与鉴权，避免重复请求拖慢首屏
+    if (isDetailPage()) return;
+
     Auth.refresh().then(async () => {
         await refreshAuthorFromApi();
         UI.applyAuthState();
     });
+});
+
+window.addEventListener('pageshow', (e) => {
+    if (isDetailPage()) return;
+    if (e.persisted) {
+        Auth.refresh().then(async () => {
+            await refreshAuthorFromApi();
+            UI.applyAuthState();
+        });
+    }
 });

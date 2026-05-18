@@ -5,13 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>我的个人博客</title>
     <!-- Tailwind CSS（class 策略与 html.dark 一致，否则深色按钮切换无效） -->
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="/assets/vendor/tailwind.min.js"></script>
     <script>tailwind.config = { darkMode: 'class' };</script>
     <!-- 立即应用深色模式，防止刷新时闪白 -->
     <script>if (localStorage.getItem('darkMode') === 'true') document.documentElement.classList.add('dark');</script>
-    <!-- Font Awesome -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.bootcdn.net/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/assets/fonts.css">
     <link rel="stylesheet" href="/assets/style.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.cn/css2?family=LXGW+WenKai&display=swap" media="print" onload="this.media='all'">
+    <noscript><link rel="stylesheet" href="https://fonts.googleapis.cn/css2?family=LXGW+WenKai&display=swap"></noscript>
     <style>
         body {
             background:
@@ -68,6 +70,33 @@
         .dark .navbar {
             background: rgba(2, 6, 23, 0.55);
             border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+        }
+
+        .navbar .nav-link {
+            font-size: 1.125rem;
+            line-height: 1.75rem;
+            font-weight: 500;
+        }
+
+        .navbar .nav-icon-btn i {
+            font-size: 1.35rem;
+        }
+
+        .navbar .author-avatar-thumb,
+        .navbar .guest-avatar-btn {
+            width: 42px;
+            height: 42px;
+        }
+
+        .navbar .guest-avatar-btn i {
+            font-size: 1.15rem;
+        }
+
+        #mobile-menu a {
+            font-size: 1.125rem;
+            font-weight: 500;
+            padding-top: 0.75rem;
+            padding-bottom: 0.75rem;
         }
 
         .brand-mark {
@@ -139,27 +168,27 @@
 
     <!-- 导航栏 -->
     <nav class="navbar fixed top-0 w-full z-50">
-        <div class="max-w-6xl mx-auto px-6 py-4">
+        <div class="max-w-6xl mx-auto px-6 py-5 md:py-6">
             <div class="flex items-center justify-between">
-                <div class="text-2xl font-bold text-indigo-600">
+                <div class="text-3xl font-bold text-indigo-600">
                     <a href="index.html" class="brand-mark hover:opacity-90 transition-opacity">
                         <span class="brand-mark-text">My Blog</span>
                     </a>
                 </div>
-                <div class="hidden md:flex items-center space-x-8">
+                <div class="hidden md:flex items-center space-x-10">
                     <a href="index.html" class="nav-link text-slate-700 dark:text-slate-200 hover:text-indigo-600 transition-colors">首页</a>
                     <a href="blog.html" class="nav-link text-slate-700 dark:text-slate-200 hover:text-indigo-600 transition-colors">博客</a>
                     <a href="about.html" class="nav-link text-slate-700 dark:text-slate-200 hover:text-indigo-600 transition-colors">关于我</a>
                 </div>
-                <div class="hidden md:flex items-center gap-4 text-slate-600 dark:text-slate-200">
-                    <a id="contact-gitee" href="#" target="_blank" class="hover:text-indigo-600 transition-colors" aria-label="Gitee">
-                        <i class="fas fa-code-branch text-lg"></i>
+                <div class="hidden md:flex items-center gap-5 text-slate-600 dark:text-slate-200">
+                    <a id="contact-gitee" href="#" target="_blank" class="nav-icon-btn hover:text-indigo-600 transition-colors" aria-label="Gitee">
+                        <i class="fas fa-code-branch"></i>
                     </a>
-                    <button type="button" onclick="openEmailModal()" class="hover:text-indigo-600 transition-colors" aria-label="Email">
-                        <i class="fas fa-envelope text-lg"></i>
+                    <button type="button" onclick="openEmailModal()" class="nav-icon-btn hover:text-indigo-600 transition-colors" aria-label="Email">
+                        <i class="fas fa-envelope"></i>
                     </button>
-                    <button type="button" onclick="openQQModal()" class="hover:text-indigo-600 transition-colors" aria-label="QQ">
-                        <i class="fab fa-qq text-lg"></i>
+                    <button type="button" onclick="openQQModal()" class="nav-icon-btn hover:text-indigo-600 transition-colors" aria-label="QQ">
+                        <i class="fab fa-qq"></i>
                     </button>
                     <a href="about.html" class="ml-1 guest-only" data-auth-trigger="1" aria-label="关于博主 / 登录">
                         <img class="author-avatar-thumb hidden" alt="博主头像" />
@@ -170,21 +199,21 @@
                     </a>
                 </div>
                 <!-- 移动端菜单按钮 -->
-                <button class="md:hidden" onclick="toggleMobileMenu()">
-                    <i class="fas fa-bars text-2xl"></i>
+                <button class="md:hidden p-1" onclick="toggleMobileMenu()" aria-label="打开菜单">
+                    <i class="fas fa-bars text-3xl"></i>
                 </button>
             </div>
             <!-- 移动端菜单 -->
-            <div id="mobile-menu" class="hidden md:hidden mt-4 space-y-2">
-                <a href="index.html" class="block py-2 text-slate-700 dark:text-slate-200 hover:text-indigo-600">首页</a>
-                <a href="blog.html" class="block py-2 text-slate-700 dark:text-slate-200 hover:text-indigo-600">博客</a>
-                <a href="about.html" class="block py-2 text-slate-700 dark:text-slate-200 hover:text-indigo-600">关于我</a>
+            <div id="mobile-menu" class="hidden md:hidden mt-5 space-y-1 pb-2">
+                <a href="index.html" class="block text-slate-700 dark:text-slate-200 hover:text-indigo-600">首页</a>
+                <a href="blog.html" class="block text-slate-700 dark:text-slate-200 hover:text-indigo-600">博客</a>
+                <a href="about.html" class="block text-slate-700 dark:text-slate-200 hover:text-indigo-600">关于我</a>
             </div>
         </div>
     </nav>
 
     <!-- 主要内容 -->
-    <main class="pt-24">
+    <main class="pt-28 md:pt-32">
         <!-- Hero（更接近 OpenRouter：留白 + 居中 + 渐变点缀，不用整条色带） -->
         <section class="px-6">
             <div class="max-w-6xl mx-auto">
@@ -493,11 +522,13 @@
                     const fillRatio = Math.min(val / maxVal, 1) * 0.82 + 0.08; // 8%~90%
                     const offset = CIRC * (1 - fillRatio);
                     const numEl = document.getElementById(num);
-                    animateCount(numEl, val);
-                    // 延迟一帧再设 offset，确保 transition 生效
-                    requestAnimationFrame(() => {
-                        document.getElementById(ring).style.strokeDashoffset = offset;
-                    });
+                    const ringEl = document.getElementById(ring);
+                    if (numEl) animateCount(numEl, val);
+                    if (ringEl) {
+                        requestAnimationFrame(() => {
+                            ringEl.style.strokeDashoffset = offset;
+                        });
+                    }
                 });
             } catch (e) {
                 // 静默失败：保持 — 占位

@@ -151,3 +151,58 @@ CREATE TRIGGER tr_article_reaction_updated_at
 BEFORE UPDATE ON article_reaction
 FOR EACH ROW
 EXECUTE FUNCTION tr_article_reaction_set_updated_at();
+
+CREATE TABLE article_highlight (
+    id UUID PRIMARY KEY,
+    article_id UUID NOT NULL REFERENCES article(id) ON DELETE CASCADE,
+    visitor_id UUID REFERENCES visitor(id) ON DELETE SET NULL,
+    user_id UUID REFERENCES "user"(id) ON DELETE SET NULL,
+    exact_text TEXT NOT NULL,
+    prefix_text TEXT NOT NULL DEFAULT '',
+    suffix_text TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE highlight_comment (
+    id UUID PRIMARY KEY,
+    highlight_id UUID NOT NULL REFERENCES article_highlight(id) ON DELETE CASCADE,
+    parent_id UUID REFERENCES highlight_comment(id) ON DELETE CASCADE,
+    body TEXT NOT NULL,
+    user_id UUID NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+    guest_name VARCHAR(100),
+    visitor_id UUID REFERENCES visitor(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_article_highlight_article ON article_highlight(article_id);
+CREATE INDEX idx_highlight_comment_highlight ON highlight_comment(highlight_id);
+CREATE INDEX idx_highlight_comment_parent ON highlight_comment(parent_id);
+
+CREATE TABLE blog_rag_meta (
+    id SMALLINT PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+    catalog_fingerprint VARCHAR(64) NOT NULL,
+    chunk_count INT NOT NULL DEFAULT 0,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE blog_rag_chunk (
+    id UUID PRIMARY KEY,
+    article_id UUID NOT NULL REFERENCES article(id) ON DELETE CASCADE,
+    chunk_index INT NOT NULL,
+    title VARCHAR(255) NOT NULL DEFAULT '',
+    article_date VARCHAR(32) NOT NULL DEFAULT '',
+    category_name VARCHAR(100) NOT NULL DEFAULT '',
+    chunk_text TEXT NOT NULL,
+    UNIQUE (article_id, chunk_index)
+);
+
+CREATE INDEX idx_blog_rag_chunk_article ON blog_rag_chunk(article_id);
+
+CREATE TABLE article_related_cache (
+    article_id UUID PRIMARY KEY REFERENCES article(id) ON DELETE CASCADE,
+    recommendations JSONB NOT NULL,
+    source_fingerprint VARCHAR(64) NOT NULL,
+    catalog_fingerprint VARCHAR(64) NOT NULL,
+    match_source VARCHAR(16) NOT NULL DEFAULT 'llm',
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);

@@ -5,16 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>文章详情 - 我的个人博客</title>
     <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="/assets/vendor/tailwind.min.js"></script>
     <script>tailwind.config = { darkMode: 'class' };</script>
     <!-- 立即应用深色模式，防止刷新时闪白 -->
     <script>if (localStorage.getItem('darkMode') === 'true') document.documentElement.classList.add('dark');</script>
-    <!-- Font Awesome -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.bootcdn.net/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/assets/fonts.css">
     <link rel="stylesheet" href="/assets/style.css">
-    <!-- 代码高亮 -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <link rel="stylesheet" href="https://fonts.googleapis.cn/css2?family=LXGW+WenKai&display=swap" media="print" onload="this.media='all'">
+    <noscript><link rel="stylesheet" href="https://fonts.googleapis.cn/css2?family=LXGW+WenKai&display=swap"></noscript>
+    <link rel="stylesheet" href="/assets/highlights.css">
+    <!-- 仅详情页正文：衬线阅读字体（异步，不阻塞首屏） -->
+    <link rel="stylesheet" href="https://fonts.googleapis.cn/css2?family=Noto+Serif+SC:wght@400;600&display=swap" media="print" onload="this.media='all'">
+    <noscript><link rel="stylesheet" href="https://fonts.googleapis.cn/css2?family=Noto+Serif+SC:wght@400;600&display=swap"></noscript>
     <style>
         /* 深色模式样式（由 html.dark 类控制，与切换按钮联动） */
         html.dark {
@@ -211,6 +214,38 @@
             flex: 1;
             min-width: 0;
         }
+
+        .related-card {
+            display: block;
+            border-radius: 12px;
+            border: 1px solid rgba(148,163,184,.2);
+            padding: 1rem 1.1rem;
+            background: rgba(248,250,252,.9);
+            transition: border-color .2s, box-shadow .2s, transform .2s;
+        }
+        html.dark .related-card {
+            background: rgba(15,23,42,.5);
+            border-color: rgba(148,163,184,.15);
+        }
+        .related-card:hover {
+            border-color: rgba(99,102,241,.45);
+            box-shadow: 0 8px 24px rgba(99,102,241,.12);
+            transform: translateY(-2px);
+        }
+        .related-reason {
+            display: inline-block;
+            font-size: .68rem;
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 99px;
+            background: rgba(99,102,241,.1);
+            color: #4f46e5;
+            margin-bottom: .5rem;
+        }
+        html.dark .related-reason {
+            background: rgba(99,102,241,.2);
+            color: #a5b4fc;
+        }
     </style>
 </head>
 <body>
@@ -325,13 +360,22 @@
                         <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-4">评论</h3>
                         <ul id="comment-list" class="space-y-4 mb-6"></ul>
                         <div id="comment-form-guest" class="space-y-3">
-                            <p class="text-sm text-gray-500">游客：点赞/点踩或发表评论前会弹出昵称，昵称与互动记录在服务器「游客」表中。文章作者以管理员登录后同样可以发表评论，且会带有「博主」标记，便于在评论区与访客区分。</p>
                             <textarea id="comment-body" rows="3" class="w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm" placeholder="写下你的想法..."></textarea>
                             <button type="button" id="comment-submit" class="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700">发表评论</button>
                             <p id="comment-msg" class="text-sm text-red-600"></p>
                         </div>
-                        <p id="comment-form-admin-hint" class="hidden text-sm text-gray-500">您已以管理员身份登录，可直接发表评论；您的评论会显示「博主」标记，便于与访客互动。</p>
                     </section>
+
+                    <section id="related-section" class="hidden mt-10 rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 p-6 shadow">
+                        <div class="mb-5">
+                            <h3 class="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                <i class="fas fa-compass text-indigo-500"></i>相关阅读
+                            </h3>
+                            <p id="related-section-hint" class="text-xs text-gray-500 dark:text-gray-400 mt-1">智能分析标签与正文主题，为你挑选值得继续阅读的文章</p>
+                        </div>
+                        <div id="related-articles-list" class="grid gap-4 sm:grid-cols-2"></div>
+                    </section>
+
                     <div class="mt-8 flex justify-between">
                         <button id="prev-article" class="bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white px-6 py-2 rounded hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">
                             <i class="fas fa-arrow-left mr-2"></i>上一篇
@@ -385,7 +429,7 @@
     </div>
 
     <!-- 游客昵称（点赞/踩/评论前） -->
-    <div id="guest-nickname-modal" class="hidden fixed inset-0 z-[1250]">
+    <div id="guest-nickname-modal" class="hidden fixed inset-0 z-[1400]">
         <div class="absolute inset-0 bg-black/50" data-guest-nick-close="1"></div>
         <div class="relative max-w-md mx-auto mt-28 bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-xl">
             <div class="flex items-center justify-between">
@@ -394,7 +438,6 @@
                     <i class="fas fa-times"></i>
                 </button>
             </div>
-            <p class="mt-3 text-sm text-gray-600 dark:text-gray-300">将写入数据库中的游客资料，并与您的评论、赞/踩关联。</p>
             <label class="mt-4 block text-sm font-semibold text-gray-700 dark:text-gray-200">昵称</label>
             <input id="guest-nickname-input" type="text" maxlength="80" class="mt-2 w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-3 text-gray-900 dark:text-white" placeholder="请输入昵称" />
             <p id="guest-nickname-error" class="text-sm text-red-600 mt-2"></p>
@@ -422,7 +465,8 @@
         </div>
     </div>
 
-    <script src="/assets/script.js"></script>
+    <script src="/assets/script.js" defer></script>
+    <script src="/assets/highlights.js" defer></script>
     <script>
 
         function openEmailModal() { document.getElementById('email-modal')?.classList.remove('hidden'); }
@@ -431,10 +475,12 @@
         function closeQQModal() { document.getElementById('qq-modal')?.classList.add('hidden'); }
 
         let currentArticleId = null;
-        let allArticles = [];
+        let neighborPrevId = null;
+        let neighborNextId = null;
         /** 当前用户对本文的表态：null | 'like' | 'dislike' */
         let currentMyReaction = null;
         let guestNicknameSuccessCb = null;
+        let destroyHighlights = null;
 
         function getStoredGuestNickname() {
             const n = Auth.state?.visitor?.nickname;
@@ -532,22 +578,116 @@
             document.getElementById('stat-dislikes').textContent = article.dislikes ?? 0;
             document.getElementById('stat-comments').textContent = article.comment_count ?? (article.comments || []).length;
             renderComments(article.comments);
-            updateCommentFormVisibility();
             currentMyReaction = article.my_reaction || null;
             updateReactionUi();
         }
 
-        function updateCommentFormVisibility() {
-            const logged = Auth.state.admin;
-            const intro = document.querySelector('#comment-form-guest > p.text-sm');
-            const hint = document.getElementById('comment-form-admin-hint');
-            if (logged) {
-                if (intro) intro.classList.add('hidden');
-                hint.classList.remove('hidden');
-            } else {
-                if (intro) intro.classList.remove('hidden');
-                hint.classList.add('hidden');
+        function renderRelatedSkeleton() {
+            const section = document.getElementById('related-section');
+            const container = document.getElementById('related-articles-list');
+            const hint = document.getElementById('related-section-hint');
+            if (!section || !container) return;
+            section.classList.remove('hidden');
+            if (hint) hint.textContent = '正在加载推荐…';
+            container.innerHTML = '';
+            for (let i = 0; i < 4; i++) {
+                const sk = document.createElement('div');
+                sk.className = 'related-card animate-pulse';
+                sk.innerHTML = `
+                    <div class="h-3 w-24 bg-gray-200 dark:bg-gray-600 rounded mb-3"></div>
+                    <div class="h-4 w-full bg-gray-200 dark:bg-gray-600 rounded mb-2"></div>
+                    <div class="h-3 w-full bg-gray-100 dark:bg-gray-700 rounded mb-1"></div>
+                    <div class="h-3 w-2/3 bg-gray-100 dark:bg-gray-700 rounded"></div>
+                `;
+                container.appendChild(sk);
             }
+        }
+
+        function renderRelatedArticles(list, meta = {}) {
+            const section = document.getElementById('related-section');
+            const container = document.getElementById('related-articles-list');
+            const hint = document.getElementById('related-section-hint');
+            if (!section || !container) return;
+            const items = Array.isArray(list) ? list : [];
+            if (!items.length) {
+                section.classList.add('hidden');
+                container.innerHTML = '';
+                return;
+            }
+            section.classList.remove('hidden');
+            if (hint) {
+                if (meta.pending) {
+                    hint.textContent = '已展示初步推荐，智能精排完成后将自动更新';
+                } else if (meta.source === 'cache' || meta.source === 'llm') {
+                    hint.textContent = '智能分析标签与正文主题，为你挑选值得继续阅读的文章';
+                } else {
+                    hint.textContent = '根据标签与分类为你推荐';
+                }
+            }
+            container.innerHTML = '';
+            items.forEach((item) => {
+                const a = document.createElement('a');
+                a.href = `detail.html?id=${encodeURIComponent(item.id)}`;
+                a.className = 'related-card';
+                const tagHtml = (item.tags || [])
+                    .slice(0, 3)
+                    .map((t) => `<span class="px-1.5 py-0.5 rounded text-[10px] bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">#${escapeHtml(t.name)}</span>`)
+                    .join(' ');
+                a.innerHTML = `
+                    <span class="related-reason">${escapeHtml(item.match_reason || '推荐阅读')}</span>
+                    <h4 class="font-bold text-slate-800 dark:text-slate-100 leading-snug mb-1">${escapeHtml(item.title || '')}</h4>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 line-clamp-2 mb-2">${escapeHtml(item.summary || '')}</p>
+                    <div class="flex flex-wrap items-center gap-2 text-xs text-gray-400">
+                        <span><i class="fas fa-calendar-alt mr-1"></i>${escapeHtml(item.date || '')}</span>
+                        ${item.category?.name ? `<span><i class="fas fa-folder mr-1"></i>${escapeHtml(item.category.name)}</span>` : ''}
+                    </div>
+                    ${tagHtml ? `<div class="flex flex-wrap gap-1 mt-2">${tagHtml}</div>` : ''}
+                `;
+                container.appendChild(a);
+            });
+        }
+
+        let relatedPollTimer = null;
+
+        async function fetchRelatedArticles(articleId) {
+            const res = await fetch(
+                `/api/articles/${encodeURIComponent(articleId)}/related`,
+                { credentials: 'include' }
+            );
+            if (!res.ok) return null;
+            return res.json();
+        }
+
+        async function loadRelatedArticles(articleId) {
+            if (relatedPollTimer) {
+                clearTimeout(relatedPollTimer);
+                relatedPollTimer = null;
+            }
+            renderRelatedSkeleton();
+            let polls = 0;
+            const maxPolls = 12;
+
+            const apply = (payload) => {
+                if (!payload) {
+                    document.getElementById('related-section')?.classList.add('hidden');
+                    return;
+                }
+                renderRelatedArticles(payload.articles || [], {
+                    source: payload.source,
+                    pending: payload.pending,
+                });
+            };
+
+            const tick = async () => {
+                const payload = await fetchRelatedArticles(articleId);
+                apply(payload);
+                if (payload?.pending && polls < maxPolls) {
+                    polls += 1;
+                    relatedPollTimer = setTimeout(tick, 2500);
+                }
+            };
+
+            await tick();
         }
 
         function updateReactionUi() {
@@ -642,14 +782,34 @@
             return m ? decodeURIComponent(m[1]) : null;
         }
 
-        // 加载文章列表
-        async function loadAllArticles() {
+        let _hljsLoading = null;
+        function ensureHighlightJs() {
+            if (window.hljs) return Promise.resolve();
+            if (_hljsLoading) return _hljsLoading;
+            _hljsLoading = new Promise((resolve, reject) => {
+                const link = document.createElement('link');
+                link.rel = 'stylesheet';
+                link.href = 'https://cdn.bootcdn.net/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css';
+                document.head.appendChild(link);
+                const s = document.createElement('script');
+                s.src = 'https://cdn.bootcdn.net/ajax/libs/highlight.js/11.9.0/highlight.min.js';
+                s.async = true;
+                s.onload = () => resolve();
+                s.onerror = reject;
+                document.head.appendChild(s);
+            });
+            return _hljsLoading;
+        }
+
+        async function highlightArticleCode() {
+            if (!document.querySelector('#article-content pre code')) return;
             try {
-                const response = await fetch("/api/articles");
-                if (!response.ok) throw new Error('list');
-                allArticles = await response.json();
-            } catch (error) {
-                console.error('获取文章列表失败:', error);
+                await ensureHighlightJs();
+                document.querySelectorAll('#article-content pre code').forEach((block) => {
+                    hljs.highlightElement(block);
+                });
+            } catch (e) {
+                console.warn('代码高亮加载跳过', e);
             }
         }
 
@@ -686,17 +846,26 @@
                 const editLink = document.getElementById('link-edit-article');
                 if (editLink) editLink.href = `editor.html?id=${encodeURIComponent(String(currentArticleId))}`;
                 document.getElementById('article-content').innerHTML = article.content;
+                document.title = (article.title || '文章详情') + ' - 我的个人博客';
 
-                // 高亮代码
-                document.querySelectorAll('pre code').forEach((block) => {
-                    hljs.highlightElement(block);
-                });
+                neighborPrevId = article.prev_id || null;
+                neighborNextId = article.next_id || null;
 
                 applyArticleExtensions(article);
                 setupNavigation();
+                loadRelatedArticles(currentArticleId);
 
-                // 构建 TOC + 里程碑标记（渲染后执行，让 hljs 先完成）
-                requestAnimationFrame(() => buildTocAndMilestones());
+                // 非关键路径：代码高亮、目录时间轴、正文划线延后执行
+                highlightArticleCode();
+                const runTocAndHighlights = () => {
+                    initArticleHighlights(article);
+                    buildTocAndMilestones();
+                };
+                if ('requestIdleCallback' in window) {
+                    requestIdleCallback(runTocAndHighlights, { timeout: 2000 });
+                } else {
+                    setTimeout(runTocAndHighlights, 0);
+                }
 
             } catch (error) {
                 console.error('获取文章详情失败:', error);
@@ -705,37 +874,26 @@
             }
         }
 
-        // 设置文章导航
         function setupNavigation() {
-            const currentIndex = allArticles.findIndex(article => String(article.id) === String(currentArticleId));
-
             const prevButton = document.getElementById('prev-article');
             const nextButton = document.getElementById('next-article');
 
-            prevButton.classList.remove('opacity-50', 'cursor-not-allowed');
-            nextButton.classList.remove('opacity-50', 'cursor-not-allowed');
+            const setNav = (btn, targetId) => {
+                btn.classList.remove('opacity-50', 'cursor-not-allowed');
+                if (targetId) {
+                    btn.disabled = false;
+                    btn.onclick = () => {
+                        window.location.href = `detail.html?id=${encodeURIComponent(targetId)}`;
+                    };
+                } else {
+                    btn.disabled = true;
+                    btn.onclick = null;
+                    btn.classList.add('opacity-50', 'cursor-not-allowed');
+                }
+            };
 
-            if (currentIndex > 0) {
-                prevButton.disabled = false;
-                prevButton.onclick = () => {
-                    window.location.href = `detail.html?id=${allArticles[currentIndex - 1].id}`;
-                };
-            } else {
-                prevButton.disabled = true;
-                prevButton.onclick = null;
-                prevButton.classList.add('opacity-50', 'cursor-not-allowed');
-            }
-
-            if (currentIndex >= 0 && currentIndex < allArticles.length - 1) {
-                nextButton.disabled = false;
-                nextButton.onclick = () => {
-                    window.location.href = `detail.html?id=${allArticles[currentIndex + 1].id}`;
-                };
-            } else {
-                nextButton.disabled = true;
-                nextButton.onclick = null;
-                nextButton.classList.add('opacity-50', 'cursor-not-allowed');
-            }
+            setNav(prevButton, neighborPrevId);
+            setNav(nextButton, neighborNextId);
         }
 
         // ══════════════════════════════════════════
@@ -753,6 +911,32 @@
         //  TOC + 时间刻度
         // ══════════════════════════════════════════
         const CHARS_PER_MIN = 400; // 中文阅读速度估算
+
+        function initArticleHighlights(article) {
+            if (typeof ArticleHighlights === 'undefined') return;
+            if (destroyHighlights) {
+                destroyHighlights();
+                destroyHighlights = null;
+            }
+            const contentEl = document.getElementById('article-content');
+            if (!contentEl || !currentArticleId) return;
+            ArticleHighlights.init({
+                articleId: currentArticleId,
+                contentEl,
+                highlights: article.highlights || [],
+                ensureGuest: (cb) => {
+                    const guestModal = document.getElementById('guest-nickname-modal');
+                    if (guestModal) guestModal.style.zIndex = '1400';
+                    openGuestNicknameModal(() => {
+                        if (guestModal) guestModal.style.zIndex = '';
+                        cb();
+                    });
+                },
+                getGuestName: () => (Auth.state.admin ? '' : getStoredGuestNickname()),
+                isAdmin: () => !!Auth.state.admin
+            });
+            destroyHighlights = () => ArticleHighlights.destroy();
+        }
 
         function buildTocAndMilestones() {
             const contentEl = document.getElementById('article-content');
@@ -865,15 +1049,13 @@
             menu.classList.toggle('hidden');
         }
 
-        // 页面加载时执行
-        document.addEventListener('DOMContentLoaded', async () => {
+        document.addEventListener('DOMContentLoaded', () => {
             const darkMode = localStorage.getItem('darkMode');
             if (darkMode === 'true') {
                 document.documentElement.classList.add('dark');
                 document.getElementById('theme-icon').className = 'fas fa-sun';
             }
 
-            await Auth.refresh();
             document.getElementById('btn-like')?.addEventListener('click', () => handleLikeClick());
             document.getElementById('btn-dislike')?.addEventListener('click', () => handleDislikeClick());
             document.getElementById('comment-submit')?.addEventListener('click', () => submitComment());
@@ -896,13 +1078,16 @@
                 true
             );
             window.addEventListener('auth-changed', () => {
-                updateCommentFormVisibility();
                 reloadArticleFromApi();
             });
 
-            await loadAllArticles();
-            await loadArticle();
-            await Contact.init();
+            // 优先拉取正文；鉴权与作者信息并行，不阻塞首屏
+            const articleTask = loadArticle();
+            const authTask = Auth.refresh().then(() => {
+                UI.applyAuthState();
+            });
+            Contact.init();
+            Promise.all([articleTask, authTask]).catch((e) => console.error(e));
         });
     </script>
 </body>

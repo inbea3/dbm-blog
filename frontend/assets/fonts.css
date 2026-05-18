@@ -1,0 +1,101 @@
+/**
+ * 双语字体：拉丁字母用 Centaur，汉字分区用楷体 / 正文衬线。
+ * 请将已授权的 Centaur 字重放入 /assets/fonts/：
+ *   Centaur-Regular.woff2  Centaur-Bold.woff2（可选 Centaur-Italic.woff2）
+ * 系统已安装时可匹配 local("Centaur") / local("Centaur MT")。
+ */
+
+/* 拉丁文（英文等） */
+@font-face {
+    font-family: "Blog UI";
+    src: local("Centaur"), local("Centaur MT"), local("Centaur MT Std"),
+        url("/assets/fonts/Centaur-Regular.woff2") format("woff2");
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+    unicode-range: U+0000-00FF, U+0100-024F, U+0250-02AF, U+1E00-1EFF,
+        U+2000-206F, U+2070-209F, U+20A0-20CF, U+2100-214F, U+2150-218F,
+        U+2190-21FF, U+2200-22FF, U+FB00-FB4F;
+}
+
+@font-face {
+    font-family: "Blog UI";
+    src: local("Centaur Bold"), local("Centaur MT Bold"), local("Centaur"),
+        url("/assets/fonts/Centaur-Bold.woff2") format("woff2");
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
+    unicode-range: U+0000-00FF, U+0100-024F, U+0250-02AF, U+1E00-1EFF,
+        U+2000-206F, U+2070-209F, U+20A0-20CF, U+2100-214F, U+2150-218F,
+        U+2190-21FF, U+2200-22FF, U+FB00-FB4F;
+}
+
+/* 拉丁文回退（未放置 Centaur 文件时） */
+@font-face {
+    font-family: "Blog UI";
+    src: local("Georgia"), local("Times New Roman");
+    font-weight: 400 700;
+    font-style: normal;
+    font-display: swap;
+    unicode-range: U+0000-00FF, U+0100-024F, U+0250-02AF, U+1E00-1EFF,
+        U+2000-206F, U+2070-209F, U+20A0-20CF, U+2100-214F, U+2150-218F,
+        U+2190-21FF, U+2200-22FF, U+FB00-FB4F;
+}
+
+/* 中文（UI 楷体） */
+@font-face {
+    font-family: "Blog UI";
+    src: local("LXGW WenKai"), local("KaiTi"), local("STKaiti"), local("楷体");
+    font-weight: 400 700;
+    font-style: normal;
+    font-display: swap;
+    unicode-range: U+2E80-2EFF, U+3000-303F, U+31C0-31EF, U+3400-4DBF,
+        U+4E00-9FFF, U+F900-FAFF, U+FE10-FE1F, U+FE30-FE4F, U+FF00-FFEF;
+}
+
+/* 正文：拉丁文 Centaur */
+@font-face {
+    font-family: "Blog Article";
+    src: local("Centaur"), local("Centaur MT"), local("Centaur MT Std"),
+        url("/assets/fonts/Centaur-Regular.woff2") format("woff2");
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+    unicode-range: U+0000-00FF, U+0100-024F, U+0250-02AF, U+1E00-1EFF,
+        U+2000-206F, U+2070-209F, U+20A0-20CF, U+2100-214F, U+2150-218F,
+        U+2190-21FF, U+2200-22FF, U+FB00-FB4F;
+}
+
+@font-face {
+    font-family: "Blog Article";
+    src: local("Centaur Bold"), local("Centaur MT Bold"), local("Centaur"),
+        url("/assets/fonts/Centaur-Bold.woff2") format("woff2");
+    font-weight: 600 700;
+    font-style: normal;
+    font-display: swap;
+    unicode-range: U+0000-00FF, U+0100-024F, U+0250-02AF, U+1E00-1EFF,
+        U+2000-206F, U+2070-209F, U+20A0-20CF, U+2100-214F, U+2150-218F,
+        U+2190-21FF, U+2200-22FF, U+FB00-FB4F;
+}
+
+@font-face {
+    font-family: "Blog Article";
+    src: local("Georgia"), local("Times New Roman");
+    font-weight: 400 600 700;
+    font-style: normal;
+    font-display: swap;
+    unicode-range: U+0000-00FF, U+0100-024F, U+0250-02AF, U+1E00-1EFF,
+        U+2000-206F, U+2070-209F, U+20A0-20CF, U+2100-214F, U+2150-218F,
+        U+2190-21FF, U+2200-22FF, U+FB00-FB4F;
+}
+
+/* 正文：中文衬线（依赖页面已加载的 Noto Serif SC） */
+@font-face {
+    font-family: "Blog Article";
+    src: local("Noto Serif SC"), local("Source Han Serif SC"), local("Songti SC");
+    font-weight: 400 600 700;
+    font-style: normal;
+    font-display: swap;
+    unicode-range: U+2E80-2EFF, U+3000-303F, U+31C0-31EF, U+3400-4DBF,
+        U+4E00-9FFF, U+F900-FAFF, U+FE10-FE1F, U+FE30-FE4F, U+FF00-FFEF;
+}

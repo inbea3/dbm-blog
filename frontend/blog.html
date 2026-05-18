@@ -4,11 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>博客列表 - 我的个人博客</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="/assets/vendor/tailwind.min.js"></script>
     <script>tailwind.config = { darkMode: 'class' };</script>
     <script>if (localStorage.getItem('darkMode') === 'true') document.documentElement.classList.add('dark');</script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.bootcdn.net/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/assets/fonts.css">
     <link rel="stylesheet" href="/assets/style.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.cn/css2?family=LXGW+WenKai&display=swap" media="print" onload="this.media='all'">
+    <noscript><link rel="stylesheet" href="https://fonts.googleapis.cn/css2?family=LXGW+WenKai&display=swap"></noscript>
     <style>
         html.dark {
             --bg-primary: #0f172a;
@@ -132,6 +135,92 @@
         }
 
         html { scroll-behavior: smooth; }
+
+        /* ── 热门标签可视化 ── */
+        .hot-tags-card {
+            border-radius: 16px;
+            border: 1px solid rgba(148,163,184,.2);
+            background: rgba(255,255,255,.92);
+            box-shadow: 0 4px 24px rgba(99,102,241,.06);
+        }
+        html.dark .hot-tags-card {
+            background: rgba(30,41,59,.75);
+            border-color: rgba(148,163,184,.12);
+        }
+        .tag-bar-row {
+            display: grid;
+            grid-template-columns: 5.5rem 1fr 2rem;
+            align-items: center;
+            gap: 10px;
+            padding: 6px 0;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: background .15s;
+        }
+        .tag-bar-row:hover { background: rgba(99,102,241,.06); }
+        html.dark .tag-bar-row:hover { background: rgba(99,102,241,.12); }
+        .tag-bar-label {
+            font-size: .8125rem;
+            font-weight: 600;
+            color: #475569;
+            text-align: right;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        html.dark .tag-bar-label { color: #cbd5e1; }
+        .tag-bar-track {
+            height: 10px;
+            border-radius: 99px;
+            background: rgba(148,163,184,.18);
+            overflow: hidden;
+        }
+        html.dark .tag-bar-track { background: rgba(148,163,184,.12); }
+        .tag-bar-fill {
+            height: 100%;
+            border-radius: 99px;
+            background: linear-gradient(90deg, #6366f1, #a855f7);
+            transition: width .6s cubic-bezier(.4,0,.2,1);
+        }
+        .tag-bar-count {
+            font-size: .75rem;
+            font-weight: 700;
+            color: #6366f1;
+            text-align: right;
+        }
+        html.dark .tag-bar-count { color: #a5b4fc; }
+        .tag-cloud-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 12px;
+            border-radius: 99px;
+            border: 1.5px solid rgba(168,85,247,.25);
+            background: rgba(168,85,247,.06);
+            color: #7c3aed;
+            cursor: pointer;
+            transition: transform .15s, box-shadow .15s, background .15s;
+            line-height: 1.3;
+        }
+        html.dark .tag-cloud-item {
+            background: rgba(168,85,247,.14);
+            color: #c4b5fd;
+            border-color: rgba(168,85,247,.35);
+        }
+        .tag-cloud-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 14px rgba(168,85,247,.25);
+            background: rgba(168,85,247,.12);
+        }
+        .tag-cloud-item.active {
+            background: rgba(99,102,241,.15);
+            border-color: #6366f1;
+            color: #4f46e5;
+        }
+        html.dark .tag-cloud-item.active {
+            background: rgba(99,102,241,.28);
+            color: #e0e7ff;
+        }
     </style>
 </head>
 <body>
@@ -186,6 +275,26 @@
             </div>
         </div>
     </header>
+
+    <!-- 热门标签可视化 -->
+    <section id="hot-tags-section" class="hidden max-w-7xl mx-auto px-4 md:px-6 pt-8 pb-2">
+        <div class="hot-tags-card p-5 md:p-6">
+            <div class="flex flex-wrap items-end justify-between gap-3 mb-5">
+                <div>
+                    <h2 class="text-lg font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                        <i class="fas fa-fire text-orange-500"></i>热门标签
+                    </h2>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">按文章引用次数统计，点击可筛选</p>
+                </div>
+                <span id="hot-tags-total" class="text-xs font-medium text-indigo-600 dark:text-indigo-400"></span>
+            </div>
+            <div id="tag-viz-bars" class="space-y-0.5 mb-5"></div>
+            <div class="border-t border-gray-100 dark:border-gray-700/80 pt-4">
+                <div class="filter-section-title mb-2">标签云</div>
+                <div id="tag-viz-cloud" class="flex flex-wrap gap-2"></div>
+            </div>
+        </div>
+    </section>
 
     <!-- 主区域：侧栏 + 文章列表 -->
     <main class="max-w-7xl mx-auto px-4 md:px-6 py-10 min-h-screen">
@@ -337,6 +446,7 @@
 
                 document.getElementById('loading').classList.add('hidden');
                 renderFilterSidebar();
+                renderHotTagsViz();
                 applyFilters();
                 if (window.UI?.applyAuthState) UI.applyAuthState();
             } catch (e) {
@@ -344,6 +454,83 @@
                 document.getElementById('loading').classList.add('hidden');
                 document.getElementById('error').classList.remove('hidden');
             }
+        }
+
+        // ═══════════════════════════════════════════════
+        //  热门标签可视化
+        // ═══════════════════════════════════════════════
+        function getTagStats() {
+            return allTags
+                .map((tag) => ({
+                    ...tag,
+                    count: allArticles.filter((a) => (a.tags || []).some((t) => t.id === tag.id)).length,
+                }))
+                .filter((t) => t.count > 0)
+                .sort((a, b) => b.count - a.count);
+        }
+
+        function renderHotTagsViz() {
+            const section = document.getElementById('hot-tags-section');
+            const barsEl = document.getElementById('tag-viz-bars');
+            const cloudEl = document.getElementById('tag-viz-cloud');
+            const totalEl = document.getElementById('hot-tags-total');
+            if (!section || !barsEl || !cloudEl) return;
+
+            const stats = getTagStats();
+            if (!stats.length) {
+                section.classList.add('hidden');
+                return;
+            }
+            section.classList.remove('hidden');
+
+            const maxCount = stats[0].count;
+            const topBars = stats.slice(0, 8);
+            if (totalEl) {
+                totalEl.textContent = `共 ${stats.length} 个标签 · 最高 ${maxCount} 篇`;
+            }
+
+            barsEl.innerHTML = '';
+            topBars.forEach((tag, i) => {
+                const pct = maxCount > 0 ? Math.round((tag.count / maxCount) * 100) : 0;
+                const row = document.createElement('div');
+                row.className = 'tag-bar-row';
+                row.title = `筛选：${tag.name}`;
+                row.innerHTML = `
+                    <span class="tag-bar-label"># ${tag.name}</span>
+                    <div class="tag-bar-track">
+                        <div class="tag-bar-fill" style="width:0%" data-pct="${pct}"></div>
+                    </div>
+                    <span class="tag-bar-count">${tag.count}</span>`;
+                row.addEventListener('click', () => {
+                    toggleTag(tag.id);
+                    document.getElementById('articles-container')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                });
+                barsEl.appendChild(row);
+                requestAnimationFrame(() => {
+                    setTimeout(() => {
+                        row.querySelector('.tag-bar-fill')?.style.setProperty('width', `${pct}%`);
+                    }, 80 + i * 60);
+                });
+            });
+
+            cloudEl.innerHTML = '';
+            stats.forEach((tag) => {
+                const minPx = 12;
+                const maxPx = 22;
+                const ratio = maxCount > 0 ? tag.count / maxCount : 0;
+                const fontSize = minPx + (maxPx - minPx) * ratio;
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = `tag-cloud-item ${selectedTags.has(tag.id) ? 'active' : ''}`;
+                btn.dataset.tagId = tag.id;
+                btn.style.fontSize = `${fontSize}px`;
+                btn.innerHTML = `${tag.name}<span class="opacity-60 text-[10px] ml-0.5">${tag.count}</span>`;
+                btn.addEventListener('click', () => {
+                    toggleTag(tag.id);
+                    document.getElementById('articles-container')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                });
+                cloudEl.appendChild(btn);
+            });
         }
 
         // ═══════════════════════════════════════════════
@@ -464,6 +651,9 @@
             });
             document.querySelectorAll('.tag-chip').forEach(chip => {
                 chip.classList.toggle('active', selectedTags.has(chip.dataset.tagId));
+            });
+            document.querySelectorAll('.tag-cloud-item').forEach((btn) => {
+                btn.classList.toggle('active', selectedTags.has(btn.dataset.tagId));
             });
         }
 
@@ -622,6 +812,7 @@
                 await API.deleteArticle(id);
                 allArticles = allArticles.filter(a => String(a.id) !== String(id));
                 renderFilterSidebar();
+                renderHotTagsViz();
                 applyFilters();
             } catch (err) {
                 alert(err?.message ?? '删除失败');
