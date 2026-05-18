@@ -3,9 +3,12 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 import re
 import secrets
+import threading
 import uuid
 from datetime import date, datetime, time
 from typing import Any
@@ -16,9 +19,25 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 from neon_db import get_neon_database
 
+import llm_client
+import rag_index
+
 GUEST_COMMENT_EMAIL = "comments-guest@system.blog"
 _guest_comment_user_id: uuid.UUID | None = None
 _bootstrapped = False
+
+_related_refresh_lock = threading.Lock()
+_related_refresh_inflight: set[str] = set()
+
+
+def _schedule_rag_reindex() -> None:
+    def _run() -> None:
+        try:
+            rag_index.rebuild_index()
+        except Exception:
+            pass
+
+    threading.Thread(target=_run, daemon=True, name="rag-reindex").start()
 
 
 def close_pool():
@@ -249,6 +268,63 @@ def _ensure_schema(cur) -> None:
         "CREATE INDEX IF NOT EXISTS idx_media_asset_article_id ON media_asset(article_id) WHERE article_id IS NOT NULL"
     )
     _ensure_visitor_platform(cur)
+    _ensure_highlight_tables(cur)
+    _ensure_related_cache_table(cur)
+
+
+def _ensure_related_cache_table(cur) -> None:
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS article_related_cache (
+            article_id UUID PRIMARY KEY REFERENCES article(id) ON DELETE CASCADE,
+            recommendations JSONB NOT NULL,
+            source_fingerprint VARCHAR(64) NOT NULL,
+            catalog_fingerprint VARCHAR(64) NOT NULL,
+            match_source VARCHAR(16) NOT NULL DEFAULT 'llm',
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+        """
+    )
+
+
+def _ensure_highlight_tables(cur) -> None:
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS article_highlight (
+            id UUID PRIMARY KEY,
+            article_id UUID NOT NULL REFERENCES article(id) ON DELETE CASCADE,
+            visitor_id UUID REFERENCES visitor(id) ON DELETE SET NULL,
+            user_id UUID REFERENCES "user"(id) ON DELETE SET NULL,
+            exact_text TEXT NOT NULL,
+            prefix_text TEXT NOT NULL DEFAULT '',
+            suffix_text TEXT NOT NULL DEFAULT '',
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+        """
+    )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS highlight_comment (
+            id UUID PRIMARY KEY,
+            highlight_id UUID NOT NULL REFERENCES article_highlight(id) ON DELETE CASCADE,
+            parent_id UUID REFERENCES highlight_comment(id) ON DELETE CASCADE,
+            body TEXT NOT NULL,
+            user_id UUID NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+            guest_name VARCHAR(100),
+            visitor_id UUID REFERENCES visitor(id) ON DELETE SET NULL,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+        """
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_article_highlight_article ON article_highlight(article_id)"
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_highlight_comment_highlight ON highlight_comment(highlight_id)"
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_highlight_comment_parent ON highlight_comment(parent_id)"
+    )
 
 
 def bootstrap_if_needed(admin_email: str, admin_password_plain: str) -> None:
@@ -631,6 +707,382 @@ def list_articles(include_drafts: bool) -> list[dict[str, Any]]:
             return [_row_to_list_item(r) for r in cur.fetchall()]
 
 
+def _tokenize_for_similarity(text: str) -> set[str]:
+    """中英文混合文本的简单分词（字符 + 双字），用于相似度计算。"""
+    raw = _safe_text(text).lower()
+    if not raw:
+        return set()
+    tokens: set[str] = set(re.findall(r"[a-z0-9]{2,}", raw))
+    cjk = re.findall(r"[\u4e00-\u9fff]", raw)
+    tokens.update(cjk)
+    for i in range(len(cjk) - 1):
+        tokens.add(cjk[i] + cjk[i + 1])
+    return tokens
+
+
+def _jaccard_similarity(a: set[str], b: set[str]) -> float:
+    if not a or not b:
+        return 0.0
+    inter = len(a & b)
+    union = len(a | b)
+    return inter / union if union else 0.0
+
+
+def _related_match_reason(
+    *,
+    shared_tag_names: list[str],
+    same_category: bool,
+    category_name: str,
+    text_score: float,
+) -> str:
+    if shared_tag_names:
+        shown = "、".join(shared_tag_names[:3])
+        if len(shared_tag_names) > 3:
+            shown += f" 等{len(shared_tag_names)}个"
+        return f"共同标签：{shown}"
+    if same_category and category_name:
+        return f"同分类：{category_name}"
+    if text_score >= 0.12:
+        return "主题内容相近"
+    return "推荐阅读"
+
+
+def _rule_score_candidates(
+    *,
+    src_cat_id,
+    src_title: str,
+    src_summ: str,
+    src_tokens: set[str],
+    src_tag_ids: set,
+    src_tag_names: dict,
+    src_pub,
+    rows: list,
+) -> list[tuple[float, float, dict[str, Any]]]:
+    scored: list[tuple[float, float, dict[str, Any]]] = []
+    for row in rows:
+        aid, title, summary, body, fmt, published_at, cat_id, cat_name, cat_slug, tags_j = row
+        fmt = fmt or "md"
+        summ = _safe_text(summary) if summary else _compute_summary(body or "", fmt)
+        tags: list[dict[str, Any]] = []
+        if isinstance(tags_j, list):
+            tags = [{"id": str(t["id"]), "name": t["name"], "slug": t["slug"]} for t in tags_j]
+
+        cand_tag_ids = {uuid.UUID(str(t["id"])) for t in tags}
+        shared_ids = src_tag_ids & cand_tag_ids
+        tag_score = len(shared_ids) / len(src_tag_ids | cand_tag_ids) if (src_tag_ids or cand_tag_ids) else 0.0
+        cat_score = 1.0 if src_cat_id and cat_id == src_cat_id else 0.0
+        text_score = _jaccard_similarity(src_tokens, _tokenize_for_similarity(f"{title} {summ}"))
+
+        pub_ts = published_at.timestamp() if published_at else 0.0
+        recency = 0.0
+        if src_pub and published_at:
+            days = abs((src_pub - published_at).days)
+            recency = max(0.0, 1.0 - min(days, 365) / 365.0)
+
+        score = tag_score * 45.0 + cat_score * 25.0 + text_score * 25.0 + recency * 5.0
+        shared_names = [src_tag_names[tid] for tid in shared_ids if tid in src_tag_names]
+        reason = _related_match_reason(
+            shared_tag_names=shared_names,
+            same_category=bool(cat_score),
+            category_name=cat_name or "",
+            text_score=text_score,
+        )
+        scored.append(
+            (
+                score,
+                pub_ts,
+                {
+                    "id": str(aid),
+                    "title": title or "",
+                    "date": published_at.date().isoformat() if published_at else "",
+                    "summary": summ,
+                    "category": {"id": str(cat_id), "name": cat_name or "", "slug": cat_slug or ""},
+                    "tags": tags,
+                    "match_reason": reason,
+                    "relevance": round(min(score, 99.9), 1),
+                    "match_source": "rule",
+                },
+            )
+        )
+    scored.sort(key=lambda x: (-x[0], -x[1]))
+    return scored
+
+
+def _related_catalog_fingerprint(cur) -> str:
+    cur.execute(
+        """SELECT COUNT(*)::bigint, COALESCE(MAX(published_at)::text, '')
+           FROM article WHERE status = 'published'"""
+    )
+    n, mx = cur.fetchone()
+    return hashlib.sha256(f"cat:{n}|{mx}".encode()).hexdigest()[:32]
+
+
+def _related_source_fingerprint(title: str, summary: str, tag_ids: set) -> str:
+    tag_part = ",".join(sorted(str(t) for t in tag_ids))
+    raw = f"{title}\n{summary}\n{tag_part}"
+    return hashlib.sha256(raw.encode()).hexdigest()[:32]
+
+
+def _read_related_cache(
+    cur,
+    article_id: uuid.UUID,
+    source_fp: str,
+    catalog_fp: str,
+) -> list[dict[str, Any]] | None:
+    cur.execute(
+        """SELECT recommendations, source_fingerprint, catalog_fingerprint
+           FROM article_related_cache WHERE article_id = %s""",
+        (article_id,),
+    )
+    row = cur.fetchone()
+    if not row:
+        return None
+    recs, sfp, cfp = row
+    if sfp != source_fp or cfp != catalog_fp:
+        return None
+    if isinstance(recs, list):
+        return recs
+    if isinstance(recs, str):
+        try:
+            parsed = json.loads(recs)
+            return parsed if isinstance(parsed, list) else None
+        except json.JSONDecodeError:
+            return None
+    return None
+
+
+def _write_related_cache(
+    cur,
+    article_id: uuid.UUID,
+    articles: list[dict[str, Any]],
+    source_fp: str,
+    catalog_fp: str,
+    match_source: str,
+) -> None:
+    cur.execute(
+        """INSERT INTO article_related_cache (
+               article_id, recommendations, source_fingerprint, catalog_fingerprint,
+               match_source, updated_at
+           ) VALUES (%s, %s::jsonb, %s, %s, %s, NOW())
+           ON CONFLICT (article_id) DO UPDATE SET
+               recommendations = EXCLUDED.recommendations,
+               source_fingerprint = EXCLUDED.source_fingerprint,
+               catalog_fingerprint = EXCLUDED.catalog_fingerprint,
+               match_source = EXCLUDED.match_source,
+               updated_at = NOW()""",
+        (article_id, json.dumps(articles, ensure_ascii=False), source_fp, catalog_fp, match_source),
+    )
+
+
+def _load_related_scored(article_id: uuid.UUID) -> dict[str, Any] | None:
+    with get_neon_database().connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """SELECT a.category_id, a.title, a.summary, a.body, a.content_format,
+                          a.published_at, a.status, c.name
+                   FROM article a
+                   LEFT JOIN category c ON c.id = a.category_id
+                   WHERE a.id = %s""",
+                (article_id,),
+            )
+            src = cur.fetchone()
+            if not src:
+                return None
+            src_cat_id, src_title, src_summary, src_body, src_fmt, src_pub, status, src_cat_name = src
+            if status != "published":
+                return None
+            src_fmt = src_fmt or "md"
+            src_summ = _safe_text(src_summary) if src_summary else _compute_summary(src_body or "", src_fmt)
+            src_tokens = _tokenize_for_similarity(f"{src_title} {src_summ}")
+
+            cur.execute(
+                "SELECT tag_id FROM article_tag WHERE article_id = %s",
+                (article_id,),
+            )
+            src_tag_ids = {r[0] for r in cur.fetchall()}
+
+            cur.execute(
+                """SELECT t.id, t.name FROM tag t
+                   JOIN article_tag at ON at.tag_id = t.id
+                   WHERE at.article_id = %s""",
+                (article_id,),
+            )
+            src_tag_names = {r[0]: r[1] for r in cur.fetchall()}
+
+            cur.execute(
+                """SELECT a.id, a.title, a.summary, a.body, a.content_format, a.published_at,
+                          c.id, c.name, c.slug,
+                          COALESCE(
+                              (SELECT json_agg(json_build_object('id', t.id, 'name', t.name, 'slug', t.slug)
+                                               ORDER BY t.name)
+                               FROM article_tag at JOIN tag t ON t.id = at.tag_id
+                               WHERE at.article_id = a.id),
+                              '[]'::json
+                          ) AS tags
+                   FROM article a
+                   JOIN category c ON c.id = a.category_id
+                   WHERE a.status = 'published' AND a.id <> %s""",
+                (article_id,),
+            )
+            rows = cur.fetchall()
+
+    scored = _rule_score_candidates(
+        src_cat_id=src_cat_id,
+        src_title=src_title or "",
+        src_summ=src_summ,
+        src_tokens=src_tokens,
+        src_tag_ids=src_tag_ids,
+        src_tag_names=src_tag_names,
+        src_pub=src_pub,
+        rows=rows,
+    )
+    return {
+        "article_id": article_id,
+        "src_cat_id": src_cat_id,
+        "src_title": src_title or "",
+        "src_summ": src_summ,
+        "src_tag_ids": src_tag_ids,
+        "src_tag_names": src_tag_names,
+        "src_cat_name": src_cat_name or "",
+        "scored": scored,
+    }
+
+
+def _related_rule_list(data: dict[str, Any], limit: int) -> list[dict[str, Any]]:
+    scored = data["scored"]
+    rule_ranked = [item for _, _, item in scored]
+    top = [item for score, _, item in scored if score > 0][:limit]
+    if len(top) >= limit:
+        return top
+    seen = {item["id"] for item in top}
+    for item in rule_ranked:
+        if item["id"] in seen:
+            continue
+        top.append(item)
+        seen.add(item["id"])
+        if len(top) >= limit:
+            break
+    return top
+
+
+def _related_llm_list(data: dict[str, Any], limit: int) -> list[dict[str, Any]] | None:
+    if not llm_client.is_configured():
+        return None
+    scored = data["scored"]
+    rule_ranked = [item for _, _, item in scored]
+    prefilter = rule_ranked[:15]
+    if not prefilter:
+        return None
+    article_id = data["article_id"]
+    src_tag_ids = data["src_tag_ids"]
+    src_tag_names = data["src_tag_names"]
+    source_article = {
+        "id": str(article_id),
+        "title": data["src_title"],
+        "summary": data["src_summ"],
+        "category": {"name": data["src_cat_name"]},
+        "tags": [{"name": src_tag_names[tid]} for tid in src_tag_ids if tid in src_tag_names],
+    }
+    llm_ranked = llm_client.rank_related_articles(source_article, prefilter, limit=limit)
+    if not llm_ranked:
+        return None
+    seen = {x["id"] for x in llm_ranked}
+    for item in rule_ranked:
+        if len(llm_ranked) >= limit:
+            break
+        if item["id"] not in seen:
+            llm_ranked.append(item)
+            seen.add(item["id"])
+    return llm_ranked[:limit]
+
+
+def get_related_articles(article_id: uuid.UUID, limit: int = 6) -> list[dict[str, Any]]:
+    """相关文章：规则预筛 + LLM 精排（供后台预热缓存；前台请用 get_related_articles_response）。"""
+    limit = max(1, min(int(limit or 6), 12))
+    data = _load_related_scored(article_id)
+    if not data:
+        return []
+    llm_ranked = _related_llm_list(data, limit)
+    if llm_ranked:
+        return llm_ranked
+    return _related_rule_list(data, limit)
+
+
+def refresh_related_articles_cache(article_id: uuid.UUID, limit: int = 6) -> bool:
+    """计算并写入相关阅读缓存（后台线程调用）。"""
+    limit = max(1, min(int(limit or 6), 12))
+    data = _load_related_scored(article_id)
+    if not data:
+        return False
+    articles = _related_llm_list(data, limit)
+    match_source = "llm"
+    if not articles:
+        articles = _related_rule_list(data, limit)
+        match_source = "rule"
+    source_fp = _related_source_fingerprint(
+        data["src_title"], data["src_summ"], data["src_tag_ids"]
+    )
+    with get_neon_database().connection() as conn:
+        with conn.transaction():
+            with conn.cursor() as cur:
+                catalog_fp = _related_catalog_fingerprint(cur)
+                _write_related_cache(
+                    cur, article_id, articles, source_fp, catalog_fp, match_source
+                )
+    return True
+
+
+def schedule_related_cache_refresh(article_id: uuid.UUID) -> None:
+    """在后台异步预热相关阅读 LLM 缓存。"""
+    if not llm_client.is_configured():
+        return
+    aid = str(article_id)
+    with _related_refresh_lock:
+        if aid in _related_refresh_inflight:
+            return
+        _related_refresh_inflight.add(aid)
+
+    def _run() -> None:
+        try:
+            refresh_related_articles_cache(article_id)
+        finally:
+            with _related_refresh_lock:
+                _related_refresh_inflight.discard(aid)
+
+    threading.Thread(target=_run, daemon=True, name=f"related-{aid[:8]}").start()
+
+
+def get_related_articles_response(
+    article_id: uuid.UUID,
+    limit: int = 6,
+) -> dict[str, Any]:
+    """
+    供 API 使用：优先读库内缓存；未命中则立即返回规则推荐并后台预热 LLM。
+    """
+    limit = max(1, min(int(limit or 6), 12))
+    data = _load_related_scored(article_id)
+    if not data:
+        return {"articles": [], "source": "none", "pending": False}
+
+    source_fp = _related_source_fingerprint(
+        data["src_title"], data["src_summ"], data["src_tag_ids"]
+    )
+    with get_neon_database().connection() as conn:
+        with conn.cursor() as cur:
+            catalog_fp = _related_catalog_fingerprint(cur)
+            cached = _read_related_cache(cur, article_id, source_fp, catalog_fp)
+
+    if cached:
+        return {"articles": cached[:limit], "source": "cache", "pending": False}
+
+    rule_articles = _related_rule_list(data, limit)
+    pending = False
+    if llm_client.is_configured():
+        schedule_related_cache_refresh(article_id)
+        pending = True
+    return {"articles": rule_articles, "source": "rule", "pending": pending}
+
+
 def get_article_dict(
     aid: uuid.UUID,
     allow_draft: bool,
@@ -749,6 +1201,20 @@ def get_article_dict(
                 if r2:
                     mine = r2[0]
 
+            cur.execute(
+                """WITH ordered AS (
+                       SELECT id,
+                              LAG(id) OVER (ORDER BY published_at DESC NULLS LAST, title ASC) AS prev_id,
+                              LEAD(id) OVER (ORDER BY published_at DESC NULLS LAST, title ASC) AS next_id
+                       FROM article WHERE status = 'published'
+                   )
+                   SELECT prev_id, next_id FROM ordered WHERE id = %s""",
+                (aid,),
+            )
+            nav = cur.fetchone()
+            prev_id = str(nav[0]) if nav and nav[0] else None
+            next_id = str(nav[1]) if nav and nav[1] else None
+
             return {
                 "id": str(rid),
                 "title": title or "",
@@ -767,7 +1233,210 @@ def get_article_dict(
                 "dislikes": int(dk or 0),
                 "comments": comments_out,
                 "my_reaction": mine,
+                "prev_id": prev_id,
+                "next_id": next_id,
+                "highlights": list_article_highlights(aid),
             }
+
+
+def _comment_author_label(
+    guest_name: str | None,
+    visitor_nick: str | None,
+    nick: str | None,
+    uemail: str | None,
+    user_role: str | None,
+    guest_sys: bool,
+) -> tuple[str, bool]:
+    if guest_sys:
+        label = _safe_text(visitor_nick) or _safe_text(guest_name) or "访客"
+        return label, False
+    label = _safe_text(nick) or (uemail or "").split("@")[0]
+    is_admin = (user_role or "").strip().lower() == "admin"
+    return label, is_admin
+
+
+def _fetch_highlight_comments(cur, highlight_id: uuid.UUID) -> list[dict[str, Any]]:
+    cur.execute(
+        """SELECT hc.id, hc.body, hc.created_at, hc.parent_id, hc.guest_name,
+                  v.nickname AS visitor_nick,
+                  COALESCE(NULLIF(TRIM(up.nickname), ''), SPLIT_PART(u.email, '@', 1)) AS nick,
+                  u.email, u.role::text AS user_role
+           FROM highlight_comment hc
+           JOIN "user" u ON u.id = hc.user_id
+           LEFT JOIN user_profile up ON up.user_id = u.id
+           LEFT JOIN visitor v ON v.id = hc.visitor_id
+           WHERE hc.highlight_id = %s
+           ORDER BY hc.created_at ASC""",
+        (highlight_id,),
+    )
+    guest_sys_email = GUEST_COMMENT_EMAIL.lower()
+    flat: list[dict[str, Any]] = []
+    for r in cur.fetchall():
+        cid, body, cat, parent_id, gn, visitor_nick, nick, uemail, user_role = r
+        guest_sys = (uemail or "").lower() == guest_sys_email
+        label, is_admin = _comment_author_label(gn, visitor_nick, nick, uemail, user_role, guest_sys)
+        flat.append(
+            {
+                "id": str(cid),
+                "body": body or "",
+                "created_at": cat.isoformat() if cat else "",
+                "parent_id": str(parent_id) if parent_id else None,
+                "author": label,
+                "is_admin": is_admin,
+            }
+        )
+    by_id = {c["id"]: {**c, "replies": []} for c in flat}
+    roots: list[dict[str, Any]] = []
+    for c in flat:
+        node = by_id[c["id"]]
+        if c["parent_id"] and c["parent_id"] in by_id:
+            by_id[c["parent_id"]]["replies"].append(node)
+        else:
+            roots.append(node)
+    return roots
+
+
+def list_article_highlights(article_id: uuid.UUID) -> list[dict[str, Any]]:
+    with get_neon_database().connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """SELECT h.id, h.exact_text, h.prefix_text, h.suffix_text, h.created_at,
+                          h.visitor_id, v.nickname AS visitor_nick,
+                          COALESCE(NULLIF(TRIM(up.nickname), ''), SPLIT_PART(u.email, '@', 1)) AS user_nick,
+                          u.email
+                   FROM article_highlight h
+                   LEFT JOIN visitor v ON v.id = h.visitor_id
+                   LEFT JOIN "user" u ON u.id = h.user_id
+                   LEFT JOIN user_profile up ON up.user_id = u.id
+                   WHERE h.article_id = %s
+                   ORDER BY h.created_at ASC""",
+                (article_id,),
+            )
+            rows = cur.fetchall()
+            out: list[dict[str, Any]] = []
+            for r in rows:
+                hid, exact, prefix, suffix, cat, vid, vnick, unick, uemail = r
+                if vid and vnick:
+                    author = _safe_text(vnick) or "访客"
+                elif uemail:
+                    author = _safe_text(unick) or uemail.split("@")[0]
+                else:
+                    author = "访客"
+                out.append(
+                    {
+                        "id": str(hid),
+                        "exact_text": exact or "",
+                        "prefix_text": prefix or "",
+                        "suffix_text": suffix or "",
+                        "created_at": cat.isoformat() if cat else "",
+                        "author": author,
+                        "comments": _fetch_highlight_comments(cur, hid),
+                    }
+                )
+            return out
+
+
+def create_article_highlight(
+    article_id: uuid.UUID,
+    *,
+    exact_text: str,
+    prefix_text: str,
+    suffix_text: str,
+    user_id: uuid.UUID | None,
+    visitor_id: uuid.UUID | None,
+) -> dict[str, Any]:
+    exact = _safe_text(exact_text)
+    if not exact:
+        raise ValueError("划线内容不能为空")
+    prefix = _safe_text(prefix_text)[:200]
+    suffix = _safe_text(suffix_text)[:200]
+    hid = uuid.uuid4()
+    gid = get_guest_comment_user_id()
+    with get_neon_database().connection() as conn:
+        with conn.transaction():
+            with conn.cursor() as cur:
+                cur.execute("SELECT 1 FROM article WHERE id = %s", (article_id,))
+                if not cur.fetchone():
+                    raise LookupError("article not found")
+                uid = user_id if user_id and user_id != gid else None
+                vid = visitor_id if not uid else None
+                if not uid and not vid:
+                    raise ValueError("需要访客或登录身份")
+                cur.execute(
+                    """INSERT INTO article_highlight
+                       (id, article_id, visitor_id, user_id, exact_text, prefix_text, suffix_text)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+                    (hid, article_id, vid, uid, exact, prefix, suffix),
+                )
+    highlights = list_article_highlights(article_id)
+    for h in highlights:
+        if h["id"] == str(hid):
+            return h
+    return {
+        "id": str(hid),
+        "exact_text": exact,
+        "prefix_text": prefix,
+        "suffix_text": suffix,
+        "created_at": datetime.now().isoformat(),
+        "author": "访客",
+        "comments": [],
+    }
+
+
+def add_highlight_comment(
+    highlight_id: uuid.UUID,
+    body: str,
+    *,
+    parent_id: uuid.UUID | None,
+    user_id: uuid.UUID | None,
+    guest_name: str | None,
+    visitor_id: uuid.UUID | None = None,
+) -> dict[str, Any]:
+    text = _safe_text(body)
+    if not text:
+        raise ValueError("评论内容不能为空")
+    gid = get_guest_comment_user_id()
+    cid = uuid.uuid4()
+    gn = _safe_text(guest_name)[:80] if guest_name else None
+    with get_neon_database().connection() as conn:
+        with conn.transaction():
+            with conn.cursor() as cur:
+                cur.execute("SELECT article_id FROM article_highlight WHERE id = %s", (highlight_id,))
+                row = cur.fetchone()
+                if not row:
+                    raise LookupError("highlight not found")
+                article_id = row[0]
+                if parent_id:
+                    cur.execute(
+                        "SELECT 1 FROM highlight_comment WHERE id = %s AND highlight_id = %s",
+                        (parent_id, highlight_id),
+                    )
+                    if not cur.fetchone():
+                        raise ValueError("父评论不存在")
+                if user_id and user_id != gid:
+                    cur.execute(
+                        """INSERT INTO highlight_comment
+                           (id, highlight_id, parent_id, body, user_id, guest_name, visitor_id)
+                           VALUES (%s, %s, %s, %s, %s, NULL, NULL)""",
+                        (cid, highlight_id, parent_id, text, user_id),
+                    )
+                else:
+                    if not visitor_id:
+                        raise ValueError("visitor_id required")
+                    if not gn:
+                        raise ValueError("guest_name required")
+                    cur.execute("UPDATE visitor SET nickname = %s WHERE id = %s", (gn, visitor_id))
+                    cur.execute(
+                        """INSERT INTO highlight_comment
+                           (id, highlight_id, parent_id, body, user_id, guest_name, visitor_id)
+                           VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+                        (cid, highlight_id, parent_id, text, gid, gn, visitor_id),
+                    )
+    highlights = list_article_highlights(article_id)
+    for h in highlights:
+        if h["id"] == str(highlight_id):
+            return {"ok": True, "highlight": h}
+    raise LookupError("highlight not found")
 
 
 def _parse_tag_id_list(payload: dict[str, Any]) -> list[uuid.UUID]:
@@ -857,6 +1526,8 @@ def create_article(payload: dict[str, Any], author_id: uuid.UUID) -> dict[str, A
 
     out = get_article_dict(aid, allow_draft=True, viewer_user_id=None, visitor_id=None)
     assert out
+    schedule_related_cache_refresh(aid)
+    _schedule_rag_reindex()
     return out
 
 
@@ -910,6 +1581,8 @@ def update_article(aid: uuid.UUID, payload: dict[str, Any]) -> dict[str, Any] | 
 
     out = get_article_dict(aid, allow_draft=True, viewer_user_id=None, visitor_id=None)
     assert out
+    schedule_related_cache_refresh(aid)
+    _schedule_rag_reindex()
     return out
 
 
@@ -917,7 +1590,10 @@ def delete_article(aid: uuid.UUID) -> bool:
     with get_neon_database().connection() as conn:
         with conn.cursor() as cur:
             cur.execute("DELETE FROM article WHERE id = %s", (aid,))
-            return cur.rowcount > 0
+            ok = cur.rowcount > 0
+    if ok:
+        _schedule_rag_reindex()
+    return ok
 
 
 def user_email_by_id(uid: uuid.UUID) -> str | None:

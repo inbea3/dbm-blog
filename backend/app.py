@@ -14,7 +14,9 @@ from flask_cors import CORS
 from werkzeug.utils import secure_filename
 
 from neon_db import NeonDatabase
+import brain_service
 import postgres_store
+import rag_index
 
 if not NeonDatabase.resolve_dsn():
     raise RuntimeError(
@@ -47,13 +49,26 @@ ADMIN_PASSWORD = _get_env('BLOG_ADMIN_PASSWORD')
 postgres_store.bootstrap_if_needed(ADMIN_EMAIL or '', ADMIN_PASSWORD or '')
 
 
+def _warm_rag_index() -> None:
+    try:
+        rag_index.ensure_index()
+    except Exception:
+        app.logger.warning("RAG index warm-up failed", exc_info=True)
+
+
 @app.before_request
 def _ensure_guest_visitor():
     """未登录用户：保证 session 中有 visitor_id，并在库中有对应 visitor 行（首次访问即 first_seen_at）。"""
+    # 静态资源不触库，避免数据库连接异常时 CSS/JS 也返回 500
+    if (request.path or "").startswith("/assets/"):
+        return
     if _session_user_id():
         return
-    postgres_store.ensure_session_visitor_id(session)
-    session.permanent = True
+    try:
+        postgres_store.ensure_session_visitor_id(session)
+        session.permanent = True
+    except Exception:
+        app.logger.warning("ensure_session_visitor_id failed", exc_info=True)
 
 
 def _session_visitor_id() -> uuid.UUID | None:
@@ -173,6 +188,44 @@ def get_article(article_id):
     return jsonify(row)
 
 
+@app.route('/api/articles/<article_id>/related', methods=['GET'])
+def get_article_related(article_id):
+    try:
+        aid = uuid.UUID(str(article_id))
+    except Exception:
+        return jsonify({'error': '文章未找到'}), 404
+    return jsonify(postgres_store.get_related_articles_response(aid, limit=6))
+
+
+@app.route('/api/brain/status', methods=['GET'])
+def brain_status():
+    return jsonify(brain_service.status())
+
+
+@app.route('/api/brain/chat', methods=['POST'])
+def brain_chat():
+    payload = request.get_json(silent=True) or {}
+    message = (payload.get('message') or '').strip()
+    history = payload.get('history') or []
+    page_context = payload.get('page_context')
+    result = brain_service.chat(message, history, page_context=page_context)
+    if result.get('error'):
+        code = 503 if '未配置' in result['error'] or '无法回复' in result['error'] else 400
+        return jsonify(result), code
+    return jsonify(result)
+
+
+@app.route('/api/brain/reindex', methods=['POST'])
+def brain_reindex():
+    if not is_admin():
+        return jsonify({'error': '需要管理员权限'}), 403
+    try:
+        stats = rag_index.rebuild_index()
+        return jsonify({'ok': True, **stats})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/articles/<article_id>/comments', methods=['POST'])
 def post_comment(article_id):
     try:
@@ -202,6 +255,100 @@ def post_comment(article_id):
     uid2, vid2 = _viewer_for_article()
     row = postgres_store.get_article_dict(aid, allow_draft=is_admin(), viewer_user_id=uid2, visitor_id=vid2)
     return jsonify({'ok': True, 'comments': row.get('comments', []) if row else []})
+
+
+@app.route('/api/articles/<article_id>/highlights', methods=['POST'])
+def post_highlight(article_id):
+    try:
+        aid = uuid.UUID(str(article_id))
+    except Exception:
+        return jsonify({'error': '文章未找到'}), 404
+    payload = request.get_json(silent=True) or {}
+    exact_text = (payload.get('exact_text') or '').strip()
+    prefix_text = (payload.get('prefix_text') or '')[:200]
+    suffix_text = (payload.get('suffix_text') or '')[:200]
+    uid = _session_user_id()
+    if uid and is_admin():
+        try:
+            out = postgres_store.create_article_highlight(
+                aid,
+                exact_text=exact_text,
+                prefix_text=prefix_text,
+                suffix_text=suffix_text,
+                user_id=uid,
+                visitor_id=None,
+            )
+        except LookupError:
+            return jsonify({'error': '文章未找到'}), 404
+        except ValueError as e:
+            return jsonify({'error': str(e)}), 400
+        return jsonify({'ok': True, 'highlight': out}), 201
+    guest_name = (payload.get('guest_name') or '').strip()
+    if not guest_name:
+        return jsonify({'error': '请填写昵称后再划线'}), 400
+    postgres_store.ensure_session_visitor_id(session)
+    vid = _session_visitor_id()
+    if not vid:
+        return jsonify({'error': '会话异常，请刷新页面'}), 400
+    try:
+        postgres_store.update_visitor_nickname(vid, guest_name)
+        out = postgres_store.create_article_highlight(
+            aid,
+            exact_text=exact_text,
+            prefix_text=prefix_text,
+            suffix_text=suffix_text,
+            user_id=None,
+            visitor_id=vid,
+        )
+    except LookupError:
+        return jsonify({'error': '文章未找到'}), 404
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    return jsonify({'ok': True, 'highlight': out}), 201
+
+
+@app.route('/api/highlights/<highlight_id>/comments', methods=['POST'])
+def post_highlight_comment(highlight_id):
+    try:
+        hid = uuid.UUID(str(highlight_id))
+    except Exception:
+        return jsonify({'error': '划线不存在'}), 404
+    payload = request.get_json(silent=True) or {}
+    body = (payload.get('body') or '').strip()
+    parent_raw = payload.get('parent_id')
+    parent_id = None
+    if parent_raw:
+        try:
+            parent_id = uuid.UUID(str(parent_raw))
+        except Exception:
+            return jsonify({'error': '父评论无效'}), 400
+    uid = _session_user_id()
+    try:
+        if is_admin() and uid:
+            out = postgres_store.add_highlight_comment(
+                hid, body, parent_id=parent_id, user_id=uid, guest_name=None
+            )
+        else:
+            guest_name = (payload.get('guest_name') or '').strip()
+            if not guest_name:
+                return jsonify({'error': '请填写昵称后再评论'}), 400
+            postgres_store.ensure_session_visitor_id(session)
+            vid = _session_visitor_id()
+            if not vid:
+                return jsonify({'error': '会话异常，请刷新页面'}), 400
+            out = postgres_store.add_highlight_comment(
+                hid,
+                body,
+                parent_id=parent_id,
+                user_id=None,
+                guest_name=guest_name,
+                visitor_id=vid,
+            )
+    except LookupError:
+        return jsonify({'error': '划线不存在'}), 404
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    return jsonify(out)
 
 
 @app.route('/api/articles/<article_id>/reactions', methods=['POST'])
@@ -507,12 +654,17 @@ def editor_html():
 
 @app.route('/assets/<path:filename>')
 def serve_assets(filename):
-    return send_from_directory(ASSETS_DIR, filename)
+    resp = send_from_directory(ASSETS_DIR, filename)
+    if filename.endswith(('.js', '.css', '.woff2', '.woff')):
+        resp.cache_control.max_age = 86400
+        resp.cache_control.public = True
+    return resp
 
 
 if __name__ == '__main__':
     print("启动个人博客后端服务（PostgreSQL）...")
     print("访问地址: http://localhost:5000")
+    _warm_rag_index()
 
     port = int(_get_env('PORT', '5000'))
     app.run(debug=True, host='0.0.0.0', port=port)
